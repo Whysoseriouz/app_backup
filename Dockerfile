@@ -25,18 +25,22 @@ ENV NODE_ENV=production \
     DATABASE_PATH=/app/data/backup.db
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
+    ca-certificates gosu \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --system --gid 1001 nodejs \
-    && useradd --system --uid 1001 --gid nodejs nextjs
+    && useradd --system --uid 1001 --gid nodejs --shell /bin/sh --create-home nextjs
 
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-RUN mkdir -p /app/data && chown -R nextjs:nodejs /app/data
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
 VOLUME ["/app/data"]
 
-USER nextjs
+# The entrypoint runs as root, fixes ownership of /app/data on bind mounts,
+# then drops privileges to nextjs (uid 1001) via gosu.
 EXPOSE 3000
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["node", "server.js"]

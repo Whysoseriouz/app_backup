@@ -24,7 +24,7 @@
 
 .PARAMETER IncludeCopyJobs
   Include Backup-Copy child sessions (JobNames like "CopyPolicy\VmName").
-  Default: off — only primary jobs are synced.
+  Default: off - only primary jobs are synced.
 
 .PARAMETER DryRun
   Print the payload and skip the HTTP call. Also prints diagnostic info
@@ -81,7 +81,7 @@ function Get-StatusFromResult {
 }
 
 # ----------------------------------------------------------------------------
-# Helfer: verschachtelte Property-Pfade wie "Info.Reason" sicher auflösen
+# Helper: verschachtelte Property-Pfade wie "Info.Reason" sicher aufloesen
 # ----------------------------------------------------------------------------
 function Get-NestedProperty {
   param($Object, [string]$Path)
@@ -133,7 +133,7 @@ function Get-SessionNote {
     if ($DebugVerbose) { Write-Host "    [dbg] Get-VBRTaskSession exception: $_" }
   }
 
-  # 2. Session-Log (Title + Description) — häufigster Ort für Retry-Warnungen
+  # 2. Session-Log (Title + Description) - haeufigster Ort fuer Retry-Warnungen
   if ($msgs.Count -eq 0) {
     try {
       $log = Get-VBRSessionLog -Session $Session -ErrorAction SilentlyContinue
@@ -149,7 +149,7 @@ function Get-SessionNote {
 
         $title = "$($entry.Title)".Trim()
         $desc  = "$($entry.Description)".Trim()
-        if ($title -and $desc -and ($desc -ne $title)) { Add-Msg "$title — $desc" }
+        if ($title -and $desc -and ($desc -ne $title)) { Add-Msg "$title | $desc" }
         elseif ($title) { Add-Msg $title }
         elseif ($desc)  { Add-Msg $desc }
       }
@@ -175,7 +175,7 @@ function Get-SessionNote {
     return $null
   }
 
-  $text = (($msgs | Select-Object -Unique) -join ' · ')
+  $text = (($msgs | Select-Object -Unique) -join ' | ')
   $text = ($text -replace '\s+', ' ').Trim()
   if ($text.Length -gt 500) { $text = $text.Substring(0, 497) + '...' }
   return $text
@@ -293,7 +293,7 @@ $results = foreach ($s in $latestPerJob) {
   }
 }
 
-# Kurzübersicht über gefundene Notizen
+# Kurzuebersicht ueber gefundene Notizen
 $withNote = ($results | Where-Object { $_.note }).Count
 if ($withNote -gt 0) {
   Write-Info "Fehlermeldungen extrahiert: $withNote"
@@ -304,7 +304,7 @@ if ($withNote -gt 0) {
   }
 }
 
-# Übersicht über die tatsächliche Verteilung
+# Uebersicht ueber die tatsaechliche Verteilung
 $byStatus = $results | Group-Object status | Sort-Object Name
 Write-Info ('Verteilung: ' + (($byStatus | ForEach-Object { "$($_.Name)=$($_.Count)" }) -join ', '))
 
@@ -318,7 +318,7 @@ $payload = [ordered]@{
 $json = $payload | ConvertTo-Json -Depth 5
 
 if ($DryRun) {
-  Write-Info 'Dry run — payload:'
+  Write-Info 'Dry run - payload:'
   Write-Host $json
   exit 0
 }

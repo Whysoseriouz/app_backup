@@ -54,30 +54,62 @@ function Write-Warn ($m) { Write-Warning "[Backup-Check] $m" }
 function Write-Fail ($m) { Write-Error   "[Backup-Check] $m" }
 
 # ----------------------------------------------------------------------------
-# Result -> App-Status (robust: Enum-Name, Integer und String alle akzeptiert)
+# Result -> App-Status
+# Zuerst String-Match (verlaesslich ueber alle Session-Typen, Success-Enum-
+# Name ist konstant). Integer nur als Fallback und nur wenn der String
+# numerisch aussieht - verschiedene Veeam-Enums haben unterschiedliche
+# Integer-Layouts und das hatten wir schon als Bug.
 # ----------------------------------------------------------------------------
 function Get-StatusFromResult {
   param($Result)
 
   if ($null -eq $Result) { return 'warning' }
 
-  # Integer-Pfad (Veeam.Backup.Common.EResult: None=-1, Success=0, Warning=1, Failed=2)
-  try {
-    $int = [int]$Result
-    switch ($int) {
-      0 { return 'success' }
-      1 { return 'warning' }
-      2 { return 'failed'  }
-    }
-  } catch {}
+  $s = "$Result".Trim()
 
-  # String-Pfad (Enum.ToString() oder eigenes String)
-  $s = "$Result"
-  if ($s -match '(?i)success') { return 'success' }
-  if ($s -match '(?i)warning') { return 'warning' }
-  if ($s -match '(?i)failed|fail|error') { return 'failed' }
+  # Exakte Enum-Namen
+  if ($s -ieq 'Success')    { return 'success' }
+  if ($s -ieq 'Warning')    { return 'warning' }
+  if ($s -ieq 'Failed')     { return 'failed'  }
+  if ($s -ieq 'None')       { return 'warning' }
+  if ($s -ieq 'InProgress') { return 'warning' }
+  if ($s -ieq 'Working')    { return 'warning' }
+  if ($s -ieq 'Starting')   { return 'warning' }
 
-  return 'warning'   # None / InProgress / unbekannt -> sichtbar machen
+  # Substring-Match fuer kombinierte Namen
+  if ($s -match '(?i)\bsuccess\b')              { return 'success' }
+  if ($s -match '(?i)\bwarning\b')              { return 'warning' }
+  if ($s -match '(?i)\bfailed?\b|\berror\b')    { return 'failed'  }
+
+  # Nur Integer-Fallback wenn die String-Repraesentation wirklich eine Zahl ist
+  if ($s -match '^-?\d+$') {
+    try {
+      switch ([int]$s) {
+        0 { return 'success' }
+        1 { return 'warning' }
+        2 { return 'failed'  }
+      }
+    } catch {}
+  }
+
+  return 'warning'
+}
+
+# ----------------------------------------------------------------------------
+# JobName normalisieren - primaere Backup-Sessions haben .JobName, Agent-
+# und einige andere Session-Typen nur .Name
+# ----------------------------------------------------------------------------
+function Get-NormalizedJobName {
+  param($Session)
+  if ($Session.JobName) {
+    $n = "$($Session.JobName)".Trim()
+    if ($n) { return $n }
+  }
+  if ($Session.Name) {
+    $n = "$($Session.Name)".Trim()
+    if ($n) { return $n }
+  }
+  return $null
 }
 
 # ----------------------------------------------------------------------------
@@ -279,8 +311,7 @@ Write-Info "Target date   : $TargetDate"
 Write-Info "Lookback      : $startWindow  ->  $endWindow"
 
 $sessions = Get-VBRBackupSession | Where-Object {
-  $_.EndTime -and $_.EndTime -ge $startWindow -and $_.EndTime -le $endWindow -and
-  $_.JobName -and "$($_.JobName)".Trim()
+  $_.EndTime -and $_.EndTime -ge $startWindow -and $_.EndTime -le $endWindow
 }
 
 # Optional: Agent-Jobs (File-Server etc.)
@@ -295,10 +326,18 @@ if (-not $sessions) {
   exit 0
 }
 
+# Sessions ohne verwendbaren Namen filtern (weder JobName noch Name gesetzt)
+$beforeName = @($sessions).Count
+$sessions = $sessions | Where-Object { Get-NormalizedJobName $_ }
+$droppedNoName = $beforeName - @($sessions).Count
+if ($droppedNoName -gt 0) {
+  Write-Info "Skipping $droppedNoName session(s) without JobName/Name"
+}
+
 # Backup-Copy-Child-Sessions rausfiltern (Format: "CopyPolicy\VmName")
 if (-not $IncludeCopyJobs) {
   $before = @($sessions).Count
-  $sessions = $sessions | Where-Object { $_.JobName -notmatch '\\' }
+  $sessions = $sessions | Where-Object { (Get-NormalizedJobName $_) -notmatch '\\' }
   $filteredOut = $before - @($sessions).Count
   if ($filteredOut -gt 0) {
     Write-Info "Skipping $filteredOut backup-copy child sessions (use -IncludeCopyJobs to include)"
@@ -310,9 +349,9 @@ if (-not $sessions) {
   exit 0
 }
 
-# pro JobName letzten Lauf
+# pro JobName letzten Lauf (Gruppierung ueber die normalisierte Form)
 $latestPerJob = $sessions |
-  Group-Object -Property JobName |
+  Group-Object -Property { Get-NormalizedJobName $_ } |
   ForEach-Object {
     $_.Group | Sort-Object EndTime -Descending | Select-Object -First 1
   }
@@ -341,11 +380,12 @@ if ($DryRun -and $latestPerJob) {
 # 4. Auf API-Format mappen
 # ----------------------------------------------------------------------------
 $results = foreach ($s in $latestPerJob) {
-  $status = Get-StatusFromResult $s.Result
-  $note   = $null
+  $jobName = Get-NormalizedJobName $s
+  $status  = Get-StatusFromResult $s.Result
+  $note    = $null
   if ($status -ne 'success') {
     if ($DryRun) {
-      Write-Host ("  [note] probing '{0}' (status={1})..." -f $s.JobName, $status)
+      Write-Host ("  [note] probing '{0}' (status={1})..." -f $jobName, $status)
     }
     $note = Get-SessionNote -Session $s -DebugVerbose:$DryRun
     if ($DryRun) {
@@ -355,7 +395,7 @@ $results = foreach ($s in $latestPerJob) {
   }
 
   [pscustomobject]@{
-    job    = $s.JobName
+    job    = $jobName
     status = $status
     note   = $note
   }

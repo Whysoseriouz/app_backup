@@ -137,7 +137,7 @@ export default function UsersPage() {
           <div className="text-sm font-semibold text-slate-700 mb-3 dark:text-slate-300">
             Neuen Benutzer anlegen
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_180px_auto] gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <input
               value={newUsername}
               onChange={(e) => {
@@ -156,17 +156,14 @@ export default function UsersPage() {
               className="text-sm rounded-lg ring-1 ring-slate-200 focus:ring-2 focus:ring-osk-500 focus:outline-none px-3 py-2 bg-white text-slate-900 placeholder:text-slate-400 dark:bg-slate-950 dark:ring-slate-700 dark:text-slate-100 dark:placeholder:text-slate-500"
               autoComplete="new-password"
             />
-            <select
-              value={newRole}
-              onChange={(e) => setNewRole(e.target.value as Role)}
-              className="text-sm rounded-lg ring-1 ring-slate-200 focus:ring-2 focus:ring-osk-500 focus:outline-none px-3 py-2 bg-white text-slate-900 dark:bg-slate-950 dark:ring-slate-700 dark:text-slate-100"
-            >
-              {ROLES.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {ROLE_LABEL[r.id]} — {r.desc}
-                </option>
-              ))}
-            </select>
+          </div>
+          <div className="mt-2">
+            <div className="block text-xs font-medium text-slate-600 mb-1.5 dark:text-slate-400">
+              Rolle
+            </div>
+            <RoleSelector value={newRole} onChange={setNewRole} />
+          </div>
+          <div className="mt-3 flex justify-end">
             <button
               type="submit"
               disabled={!newUsername.trim() || !newPassword || adding}
@@ -400,18 +397,11 @@ function EditUserDialog({
                 </span>
               )}
             </label>
-            <select
+            <RoleSelector
               value={role}
-              onChange={(e) => setRole(e.target.value as Role)}
+              onChange={setRole}
               disabled={isMe}
-              className="w-full text-sm rounded-lg ring-1 ring-slate-200 focus:ring-2 focus:ring-osk-500 focus:outline-none px-3 py-2 bg-white text-slate-900 disabled:opacity-50 dark:bg-slate-950 dark:ring-slate-700 dark:text-slate-100"
-            >
-              {ROLES.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {ROLE_LABEL[r.id]} — {r.desc}
-                </option>
-              ))}
-            </select>
+            />
           </div>
           {error && (
             <div className="text-xs text-rose-600 dark:text-rose-400">
@@ -442,6 +432,54 @@ function EditUserDialog({
           </button>
         </div>
       </form>
+    </div>
+  );
+}
+
+function RoleSelector({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: Role;
+  onChange: (r: Role) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+      {ROLES.map((r) => {
+        const active = r.id === value;
+        return (
+          <button
+            key={r.id}
+            type="button"
+            onClick={() => !disabled && onChange(r.id)}
+            disabled={disabled}
+            className={cn(
+              'text-left rounded-lg px-3 py-2 ring-1 transition',
+              disabled && 'opacity-50 cursor-not-allowed',
+              !disabled && active
+                ? 'bg-osk-50 ring-osk-400 text-osk-800 dark:bg-osk-500/15 dark:ring-osk-400/60 dark:text-osk-200'
+                : !disabled
+                  ? 'bg-white ring-slate-200 text-slate-700 hover:bg-slate-50 hover:ring-slate-300 dark:bg-slate-950 dark:ring-slate-700 dark:text-slate-300 dark:hover:bg-slate-800'
+                  : 'bg-slate-50 ring-slate-200 text-slate-500 dark:bg-slate-900 dark:ring-slate-800 dark:text-slate-400',
+            )}
+          >
+            <div className="flex items-center gap-1.5 font-semibold text-sm">
+              <span
+                className={cn(
+                  'inline-block h-2 w-2 rounded-full',
+                  active ? 'bg-osk-600' : 'bg-slate-300 dark:bg-slate-600',
+                )}
+              />
+              {ROLE_LABEL[r.id]}
+            </div>
+            <div className="text-[11px] leading-snug text-slate-500 dark:text-slate-400 mt-0.5">
+              {r.desc}
+            </div>
+          </button>
+        );
+      })}
     </div>
   );
 }

@@ -81,6 +81,66 @@ function Get-StatusFromResult {
 }
 
 # ----------------------------------------------------------------------------
+# Fehler-/Warn-Text einer Session zusammentragen
+# Reihenfolge: Task-Sessions -> Session-Log -> Info.Reason
+# ----------------------------------------------------------------------------
+function Get-SessionNote {
+  param($Session)
+
+  $msgs = [System.Collections.Generic.List[string]]::new()
+
+  # 1. Task-Sessions (pro VM) — hier liegt typischerweise der konkrete Grund
+  try {
+    $tasks = Get-VBRTaskSession -Session $Session -ErrorAction SilentlyContinue
+    foreach ($t in $tasks) {
+      $tr = "$($t.Result)"
+      if ($tr -notmatch '(?i)warning|failed') { continue }
+
+      $reason = $null
+      if ($t.Info -and $t.Info.Reason)       { $reason = "$($t.Info.Reason)" }
+      elseif ($t.Info -and $t.Info.Description) { $reason = "$($t.Info.Description)" }
+      elseif ($t.Info -and $t.Info.Title)    { $reason = "$($t.Info.Title)" }
+      if (-not $reason) { continue }
+
+      $reason = ($reason -replace '\s+', ' ').Trim()
+      if (-not $reason) { continue }
+
+      $name = "$($t.Name)".Trim()
+      if ($name) { $msgs.Add("${name}: $reason") } else { $msgs.Add($reason) }
+    }
+  } catch {}
+
+  # 2. Session-Log als Fallback (Einträge mit Warning/Failed-Status)
+  if ($msgs.Count -eq 0) {
+    try {
+      $log = Get-VBRSessionLog -Session $Session -ErrorAction SilentlyContinue
+      foreach ($entry in $log) {
+        $lstatus = "$($entry.Status)"
+        if ($lstatus -notmatch '(?i)warning|failed|error') { continue }
+        $title = "$($entry.Title)".Trim()
+        if ($title) { $msgs.Add($title) }
+      }
+    } catch {}
+  }
+
+  # 3. Session-Level-Info als letzter Ausweg
+  if ($msgs.Count -eq 0) {
+    if ($Session.Info -and $Session.Info.Reason) {
+      $msgs.Add("$($Session.Info.Reason)")
+    } elseif ($Session.Info -and $Session.Info.FailureMessage) {
+      $msgs.Add("$($Session.Info.FailureMessage)")
+    }
+  }
+
+  if ($msgs.Count -eq 0) { return $null }
+
+  $text = (($msgs | Select-Object -Unique) -join ' · ')
+  $text = ($text -replace '\s+', ' ').Trim()
+  if ($text.Length -gt 500) { $text = $text.Substring(0, 497) + '...' }
+  return $text
+}
+
+# ----------------------------------------------------------------------------
 # 1. Veeam PowerShell laden
 # ----------------------------------------------------------------------------
 try {
@@ -173,27 +233,23 @@ if ($DryRun -and $latestPerJob) {
 # ----------------------------------------------------------------------------
 $results = foreach ($s in $latestPerJob) {
   $status = Get-StatusFromResult $s.Result
-
-  $note = $null
-  if ($status -ne 'success') {
-    try {
-      $details = $s.GetDetails() 2>$null
-      if ($details -and $details.Count -gt 0 -and $details[0].Title) {
-        $note = ($details[0].Title -replace '\s+', ' ').Trim()
-      }
-    } catch { }
-    if (-not $note -and $s.Info.FailureMessage) {
-      $note = $s.Info.FailureMessage
-    }
-    if ($note -and $note.Length -gt 240) {
-      $note = $note.Substring(0, 237) + '...'
-    }
-  }
+  $note   = if ($status -ne 'success') { Get-SessionNote -Session $s } else { $null }
 
   [pscustomobject]@{
     job    = $s.JobName
     status = $status
     note   = $note
+  }
+}
+
+# Kurzübersicht über gefundene Notizen
+$withNote = ($results | Where-Object { $_.note }).Count
+if ($withNote -gt 0) {
+  Write-Info "Fehlermeldungen extrahiert: $withNote"
+  if ($DryRun) {
+    foreach ($r in ($results | Where-Object { $_.note })) {
+      Write-Host ("  [{0}] {1}: {2}" -f $r.status, $r.job, $r.note)
+    }
   }
 }
 

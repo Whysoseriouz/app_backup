@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import { CurrentUserProvider } from '@/components/CurrentUserContext';
 
 export const metadata: Metadata = {
   title: 'Backup Check · OrgaSoft Kommunal',
@@ -42,7 +43,9 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
-      <body>{children}</body>
+      <body>
+        <CurrentUserProvider>{children}</CurrentUserProvider>
+      </body>
     </html>
   );
 }

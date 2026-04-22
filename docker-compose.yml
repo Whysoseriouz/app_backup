@@ -10,8 +10,14 @@ services:
     environment:
       - DATABASE_PATH=/app/data/backup.db
       - TZ=Europe/Berlin
-      # Set SYNC_TOKEN in a .env file next to docker-compose.yml to enable
-      # the Veeam sync endpoint (POST /api/sync). Generate a strong random
-      # value, e.g. via PowerShell:  [guid]::NewGuid().Guid
+      # Token for /api/sync (Veeam PowerShell integration)
       - SYNC_TOKEN=${SYNC_TOKEN:-}
+      # JWT signing key for user sessions. MUST be set for production!
+      # Generate e.g.: [guid]::NewGuid().Guid
+      - AUTH_SECRET=${AUTH_SECRET:-}
+      # Set to 1 if serving over HTTPS (reverse proxy). Default: 0 for LAN HTTP.
+      - COOKIE_SECURE=${COOKIE_SECURE:-0}
+      # Initial admin credentials (only used if users table is empty)
+      - INITIAL_ADMIN_USERNAME=${INITIAL_ADMIN_USERNAME:-admin}
+      - INITIAL_ADMIN_PASSWORD=${INITIAL_ADMIN_PASSWORD:-admin}
     restart: unless-stopped

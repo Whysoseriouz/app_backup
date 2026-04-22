@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import bcrypt from 'bcryptjs';
 import path from 'node:path';
 import fs from 'node:fs';
 
@@ -17,6 +18,7 @@ export function getDb(): Database.Database {
     dbInstance.pragma('foreign_keys = ON');
     migrate(dbInstance);
     seedIfEmpty(dbInstance);
+    seedInitialAdmin(dbInstance);
   }
   return dbInstance;
 }
@@ -49,6 +51,15 @@ function migrate(db: Database.Database) {
       ON confirmations(date);
     CREATE INDEX IF NOT EXISTS idx_confirmations_job_date
       ON confirmations(job_id, date);
+
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      role TEXT NOT NULL CHECK(role IN ('admin','write','read')) DEFAULT 'read',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 }
 
@@ -92,6 +103,28 @@ const VMWARE_JOBS = [
   'K21 Kundenserver',
   'K99 Kundenserver',
 ];
+
+function seedInitialAdmin(db: Database.Database) {
+  const row = db.prepare('SELECT COUNT(*) AS c FROM users').get() as {
+    c: number;
+  };
+  if (row.c > 0) return;
+
+  const username = process.env.INITIAL_ADMIN_USERNAME || 'admin';
+  const password = process.env.INITIAL_ADMIN_PASSWORD || 'admin';
+  const hash = bcrypt.hashSync(password, 10);
+
+  db.prepare(
+    'INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)',
+  ).run(username, hash, 'admin');
+
+  console.log(
+    `[backup-check] seeded initial admin user '${username}'` +
+      (process.env.INITIAL_ADMIN_PASSWORD
+        ? ' (password from env)'
+        : " (default password: 'admin' - please change immediately)"),
+  );
+}
 
 function seedIfEmpty(db: Database.Database) {
   const row = db.prepare('SELECT COUNT(*) AS c FROM jobs').get() as {

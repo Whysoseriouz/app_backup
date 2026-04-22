@@ -17,6 +17,7 @@ import { CellPopover } from '@/components/CellPopover';
 import { StatusDot } from '@/components/StatusDot';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { SyncIndicator } from '@/components/SyncIndicator';
+import { useCan } from '@/components/CurrentUserContext';
 import {
   DOW_SHORT,
   MONTH_LONG,
@@ -41,6 +42,7 @@ import { cn } from '@/lib/utils';
 type View = 'week' | 'month';
 
 export default function HomePage() {
+  const canWrite = useCan('write');
   const [view, setView] = useState<View>('week');
   const [anchor, setAnchor] = useState<Date>(new Date());
   const [data, setData] = useState<OverviewPayload>({
@@ -224,45 +226,47 @@ export default function HomePage() {
 
             <SyncIndicator />
 
-            <div className="ml-auto flex items-center gap-2">
-              <button
-                onClick={() => askResetDay(today)}
-                disabled={confirmedCountToday === 0}
-                title="Alle heutigen Quittungen löschen"
-                className={cn(
-                  'inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium transition',
-                  confirmedCountToday === 0
-                    ? 'text-slate-400 dark:text-slate-600 cursor-not-allowed'
-                    : 'text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-500/10',
-                )}
-              >
-                <RotateCcw className="h-4 w-4" />
-                Heute zurücksetzen
-                {confirmedCountToday > 0 && (
-                  <span className="ml-1 text-xs text-rose-500/80 dark:text-rose-400/80">
-                    ({confirmedCountToday})
-                  </span>
-                )}
-              </button>
-              <button
-                onClick={() => bulkConfirmDay(today)}
-                disabled={openCountToday === 0}
-                className={cn(
-                  'inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold shadow-soft transition',
-                  openCountToday === 0
-                    ? 'bg-slate-100 text-slate-400 cursor-not-allowed dark:bg-slate-800 dark:text-slate-600'
-                    : 'bg-emerald-500 hover:bg-emerald-600 text-white',
-                )}
-              >
-                <CheckCheck className="h-4 w-4" />
-                {bulkButtonLabel}
-                {openCountToday > 0 && (
-                  <span className="ml-1 inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-white/20 text-white text-xs">
-                    {openCountToday}
-                  </span>
-                )}
-              </button>
-            </div>
+            {canWrite && (
+              <div className="ml-auto flex items-center gap-2">
+                <button
+                  onClick={() => askResetDay(today)}
+                  disabled={confirmedCountToday === 0}
+                  title="Alle heutigen Quittungen löschen"
+                  className={cn(
+                    'inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium transition',
+                    confirmedCountToday === 0
+                      ? 'text-slate-400 dark:text-slate-600 cursor-not-allowed'
+                      : 'text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-500/10',
+                  )}
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  Heute zurücksetzen
+                  {confirmedCountToday > 0 && (
+                    <span className="ml-1 text-xs text-rose-500/80 dark:text-rose-400/80">
+                      ({confirmedCountToday})
+                    </span>
+                  )}
+                </button>
+                <button
+                  onClick={() => bulkConfirmDay(today)}
+                  disabled={openCountToday === 0}
+                  className={cn(
+                    'inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold shadow-soft transition',
+                    openCountToday === 0
+                      ? 'bg-slate-100 text-slate-400 cursor-not-allowed dark:bg-slate-800 dark:text-slate-600'
+                      : 'bg-emerald-500 hover:bg-emerald-600 text-white',
+                  )}
+                >
+                  <CheckCheck className="h-4 w-4" />
+                  {bulkButtonLabel}
+                  {openCountToday > 0 && (
+                    <span className="ml-1 inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-white/20 text-white text-xs">
+                      {openCountToday}
+                    </span>
+                  )}
+                </button>
+              </div>
+            )}
           </div>
 
           {/* matrix */}
@@ -321,23 +325,25 @@ export default function HomePage() {
                             >
                               {d.getDate()}
                             </div>
-                            <DayActions
-                              view={view}
-                              onConfirm={() => bulkConfirmDay(iso)}
-                              onReset={() => askResetDay(iso)}
-                              confirmDisabled={open === 0}
-                              resetDisabled={confirmed === 0}
-                              confirmTitle={
-                                open === 0
-                                  ? 'Bereits alle bestätigt'
-                                  : `${formatLong(d)} – alle ${open} offenen Jobs als Erfolg quittieren`
-                              }
-                              resetTitle={
-                                confirmed === 0
-                                  ? 'Nichts zum Zurücksetzen'
-                                  : `${formatLong(d)} – alle ${confirmed} Quittungen löschen`
-                              }
-                            />
+                            {canWrite && (
+                              <DayActions
+                                view={view}
+                                onConfirm={() => bulkConfirmDay(iso)}
+                                onReset={() => askResetDay(iso)}
+                                confirmDisabled={open === 0}
+                                resetDisabled={confirmed === 0}
+                                confirmTitle={
+                                  open === 0
+                                    ? 'Bereits alle bestätigt'
+                                    : `${formatLong(d)} – alle ${open} offenen Jobs als Erfolg quittieren`
+                                }
+                                resetTitle={
+                                  confirmed === 0
+                                    ? 'Nichts zum Zurücksetzen'
+                                    : `${formatLong(d)} – alle ${confirmed} Quittungen löschen`
+                                }
+                              />
+                            )}
                           </div>
                         </th>
                       );
@@ -374,28 +380,35 @@ export default function HomePage() {
                             )}
                           >
                             <div className="flex items-center justify-center h-11">
-                              <CellPopover
-                                job={job}
-                                date={iso}
-                                confirmation={conf}
-                                onSave={(status, note, by) =>
-                                  upsertConfirmation(
-                                    job.id,
-                                    iso,
-                                    status,
-                                    note,
-                                    by,
-                                  )
-                                }
-                                onClear={() =>
-                                  deleteConfirmation(job.id, iso)
-                                }
-                              >
-                                <StatusDot
-                                  status={conf?.status}
+                              {canWrite ? (
+                                <CellPopover
+                                  job={job}
+                                  date={iso}
+                                  confirmation={conf}
+                                  onSave={(status, note, by) =>
+                                    upsertConfirmation(
+                                      job.id,
+                                      iso,
+                                      status,
+                                      note,
+                                      by,
+                                    )
+                                  }
+                                  onClear={() =>
+                                    deleteConfirmation(job.id, iso)
+                                  }
+                                >
+                                  <StatusDot
+                                    status={conf?.status}
+                                    size={view === 'week' ? 'md' : 'sm'}
+                                  />
+                                </CellPopover>
+                              ) : (
+                                <ReadOnlyCell
+                                  confirmation={conf}
                                   size={view === 'week' ? 'md' : 'sm'}
                                 />
-                              </CellPopover>
+                              )}
                             </div>
                           </td>
                         );
@@ -529,5 +542,59 @@ function DayActions({
         <RotateCcw className={iconSize} strokeWidth={2.5} />
       </button>
     </div>
+  );
+}
+
+function ReadOnlyCell({
+  confirmation,
+  size,
+}: {
+  confirmation?: Confirmation;
+  size: 'sm' | 'md';
+}) {
+  if (!confirmation) {
+    return <StatusDot status={undefined} size={size} />;
+  }
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>
+        <button
+          type="button"
+          className="group inline-flex items-center justify-center h-9 w-9 rounded-full cursor-default"
+          aria-label={STATUS_META[confirmation.status].label}
+        >
+          <StatusDot status={confirmation.status} size={size} />
+        </button>
+      </Tooltip.Trigger>
+      <Tooltip.Portal>
+        <Tooltip.Content
+          side="top"
+          sideOffset={6}
+          collisionPadding={10}
+          className="z-40 max-w-[260px] rounded-lg bg-slate-900 text-white px-3 py-2 text-xs shadow-pop animate-fade-in dark:bg-slate-800 dark:ring-1 dark:ring-slate-700"
+        >
+          <div className="flex items-center gap-1.5 font-semibold">
+            <span
+              className={cn(
+                'h-2 w-2 rounded-full',
+                STATUS_META[confirmation.status].dot,
+              )}
+            />
+            {STATUS_META[confirmation.status].label}
+          </div>
+          {confirmation.note && (
+            <div className="mt-1 text-slate-200 leading-snug whitespace-pre-wrap">
+              {confirmation.note}
+            </div>
+          )}
+          {confirmation.confirmed_by && (
+            <div className="mt-1 text-[10px] text-slate-400">
+              von {confirmation.confirmed_by}
+            </div>
+          )}
+          <Tooltip.Arrow className="fill-slate-900 dark:fill-slate-800" />
+        </Tooltip.Content>
+      </Tooltip.Portal>
+    </Tooltip.Root>
   );
 }

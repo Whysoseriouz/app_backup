@@ -2,8 +2,12 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Backup Check',
+  title: 'Backup Check · OrgaSoft Kommunal',
   description: 'Tägliche Bestätigung der Veeam-Backup-Jobs',
+  icons: {
+    icon: '/favicon.png',
+    apple: '/favicon.png',
+  },
 };
 
 const themeInitScript = `(function(){

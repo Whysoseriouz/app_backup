@@ -1,12 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  ChevronLeft,
-  ChevronRight,
-  Printer,
-  ShieldCheck,
-} from 'lucide-react';
+import Image from 'next/image';
+import { ChevronLeft, ChevronRight, Printer } from 'lucide-react';
 import { NavBar } from '@/components/NavBar';
 import {
   DOW_SHORT,
@@ -123,11 +119,15 @@ export default function ReportPage() {
 
         {/* report paper */}
         <div className="rounded-2xl bg-white ring-1 ring-slate-200 shadow-soft p-6 dark:bg-slate-900 dark:ring-slate-800 print:ring-0 print:shadow-none print:rounded-none print:p-0 print:bg-white">
-          <div className="flex items-start gap-3 border-b border-slate-200 pb-4 mb-5 dark:border-slate-800 print:border-slate-200">
-            <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-osk-500 to-osk-700 flex items-center justify-center shadow-soft">
-              <ShieldCheck className="h-6 w-6 text-white" />
-            </div>
-            <div>
+          <div className="flex items-start gap-4 border-b border-slate-200 pb-4 mb-5 dark:border-slate-800 print:border-slate-200">
+            <Image
+              src="/favicon.png"
+              alt="OrgaSoft Kommunal"
+              width={56}
+              height={56}
+              className="h-14 w-14 drop-shadow-sm print:drop-shadow-none"
+            />
+            <div className="flex-1 min-w-0">
               <div className="text-xs uppercase tracking-wider text-slate-500 font-semibold dark:text-slate-400 print:text-slate-500">
                 Backup-Monatsbericht
               </div>
@@ -140,6 +140,13 @@ export default function ReportPage() {
                 {formatLong(new Date())}
               </div>
             </div>
+            <Image
+              src="/logo.png"
+              alt="OrgaSoft Kommunal"
+              width={180}
+              height={64}
+              className="hidden sm:block h-14 w-auto self-center opacity-90 print:block"
+            />
           </div>
 
           {/* stats */}

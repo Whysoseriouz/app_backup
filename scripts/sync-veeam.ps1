@@ -81,58 +81,99 @@ function Get-StatusFromResult {
 }
 
 # ----------------------------------------------------------------------------
+# Helfer: verschachtelte Property-Pfade wie "Info.Reason" sicher auflösen
+# ----------------------------------------------------------------------------
+function Get-NestedProperty {
+  param($Object, [string]$Path)
+  $val = $Object
+  foreach ($p in ($Path -split '\.')) {
+    if ($null -eq $val) { return $null }
+    try { $val = $val.$p } catch { return $null }
+  }
+  return $val
+}
+
+# ----------------------------------------------------------------------------
 # Fehler-/Warn-Text einer Session zusammentragen
-# Reihenfolge: Task-Sessions -> Session-Log -> Info.Reason
 # ----------------------------------------------------------------------------
 function Get-SessionNote {
-  param($Session)
+  param($Session, [switch]$DebugVerbose)
 
   $msgs = [System.Collections.Generic.List[string]]::new()
+  function Add-Msg($m) {
+    if (-not $m) { return }
+    $t = ("$m" -replace '\s+', ' ').Trim()
+    if ($t) { $msgs.Add($t) }
+  }
 
-  # 1. Task-Sessions (pro VM) — hier liegt typischerweise der konkrete Grund
+  # 1. Task-Sessions (pro VM)
   try {
     $tasks = Get-VBRTaskSession -Session $Session -ErrorAction SilentlyContinue
+    if ($DebugVerbose) {
+      Write-Host ("    [dbg] Get-VBRTaskSession -> {0} task(s)" -f @($tasks).Count)
+    }
     foreach ($t in $tasks) {
       $tr = "$($t.Result)"
+      if ($DebugVerbose) {
+        Write-Host ("    [dbg] task '{0}' result={1}" -f $t.Name, $tr)
+      }
       if ($tr -notmatch '(?i)warning|failed') { continue }
 
       $reason = $null
-      if ($t.Info -and $t.Info.Reason)       { $reason = "$($t.Info.Reason)" }
-      elseif ($t.Info -and $t.Info.Description) { $reason = "$($t.Info.Description)" }
-      elseif ($t.Info -and $t.Info.Title)    { $reason = "$($t.Info.Title)" }
-      if (-not $reason) { continue }
-
-      $reason = ($reason -replace '\s+', ' ').Trim()
-      if (-not $reason) { continue }
-
-      $name = "$($t.Name)".Trim()
-      if ($name) { $msgs.Add("${name}: $reason") } else { $msgs.Add($reason) }
+      foreach ($pc in @('Info.Reason','Info.Description','Info.Title','Reason','Description','Title')) {
+        $v = Get-NestedProperty $t $pc
+        if ($v) { $reason = "$v"; break }
+      }
+      if ($reason) {
+        $name = "$($t.Name)".Trim()
+        if ($name) { Add-Msg ("${name}: $reason") } else { Add-Msg $reason }
+      }
     }
-  } catch {}
+  } catch {
+    if ($DebugVerbose) { Write-Host "    [dbg] Get-VBRTaskSession exception: $_" }
+  }
 
-  # 2. Session-Log als Fallback (Einträge mit Warning/Failed-Status)
+  # 2. Session-Log (Title + Description) — häufigster Ort für Retry-Warnungen
   if ($msgs.Count -eq 0) {
     try {
       $log = Get-VBRSessionLog -Session $Session -ErrorAction SilentlyContinue
+      if ($DebugVerbose) {
+        Write-Host ("    [dbg] Get-VBRSessionLog -> {0} entry(ies)" -f @($log).Count)
+      }
       foreach ($entry in $log) {
         $lstatus = "$($entry.Status)"
+        if ($DebugVerbose -and $lstatus -match '(?i)warn|fail|error') {
+          Write-Host ("    [dbg] log [{0}] title='{1}' desc='{2}'" -f $lstatus, $entry.Title, $entry.Description)
+        }
         if ($lstatus -notmatch '(?i)warning|failed|error') { continue }
-        $title = "$($entry.Title)".Trim()
-        if ($title) { $msgs.Add($title) }
-      }
-    } catch {}
-  }
 
-  # 3. Session-Level-Info als letzter Ausweg
-  if ($msgs.Count -eq 0) {
-    if ($Session.Info -and $Session.Info.Reason) {
-      $msgs.Add("$($Session.Info.Reason)")
-    } elseif ($Session.Info -and $Session.Info.FailureMessage) {
-      $msgs.Add("$($Session.Info.FailureMessage)")
+        $title = "$($entry.Title)".Trim()
+        $desc  = "$($entry.Description)".Trim()
+        if ($title -and $desc -and ($desc -ne $title)) { Add-Msg "$title — $desc" }
+        elseif ($title) { Add-Msg $title }
+        elseif ($desc)  { Add-Msg $desc }
+      }
+    } catch {
+      if ($DebugVerbose) { Write-Host "    [dbg] Get-VBRSessionLog exception: $_" }
     }
   }
 
-  if ($msgs.Count -eq 0) { return $null }
+  # 3. Session- und Info-Properties
+  if ($msgs.Count -eq 0) {
+    foreach ($pc in @('Info.Reason','Info.FailureMessage','Info.Description','Reason','FailureMessage','Description')) {
+      $v = Get-NestedProperty $Session $pc
+      if ($v) {
+        Add-Msg "$v"
+        if ($DebugVerbose) { Write-Host ("    [dbg] session.{0} = {1}" -f $pc, $v) }
+        break
+      }
+    }
+  }
+
+  if ($msgs.Count -eq 0) {
+    if ($DebugVerbose) { Write-Host '    [dbg] no note text found in any source' }
+    return $null
+  }
 
   $text = (($msgs | Select-Object -Unique) -join ' · ')
   $text = ($text -replace '\s+', ' ').Trim()
@@ -233,7 +274,17 @@ if ($DryRun -and $latestPerJob) {
 # ----------------------------------------------------------------------------
 $results = foreach ($s in $latestPerJob) {
   $status = Get-StatusFromResult $s.Result
-  $note   = if ($status -ne 'success') { Get-SessionNote -Session $s } else { $null }
+  $note   = $null
+  if ($status -ne 'success') {
+    if ($DryRun) {
+      Write-Host ("  [note] probing '{0}' (status={1})..." -f $s.JobName, $status)
+    }
+    $note = Get-SessionNote -Session $s -DebugVerbose:$DryRun
+    if ($DryRun) {
+      if ($note) { Write-Host ("  [note] -> `"$note`"") }
+      else       { Write-Host '  [note] -> (nichts gefunden)' }
+    }
+  }
 
   [pscustomobject]@{
     job    = $s.JobName

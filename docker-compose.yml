@@ -1,0 +1,17 @@
+services:
+  backup-check:
+    build: .
+    image: backup-check:latest
+    container_name: backup-check
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - DATABASE_PATH=/app/data/backup.db
+      - TZ=Europe/Berlin
+      # Set SYNC_TOKEN in a .env file next to docker-compose.yml to enable
+      # the Veeam sync endpoint (POST /api/sync). Generate a strong random
+      # value, e.g. via PowerShell:  [guid]::NewGuid().Guid
+      - SYNC_TOKEN=${SYNC_TOKEN:-}
+    restart: unless-stopped

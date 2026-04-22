@@ -1,0 +1,80 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body {
+  height: 100%;
+}
+
+@layer base {
+  html {
+    font-family:
+      'Segoe UI', Calibri, 'Inter', -apple-system, BlinkMacSystemFont, Roboto,
+      Arial, sans-serif;
+  }
+  body {
+    @apply bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* subtle scrollbar */
+.scroll-container::-webkit-scrollbar {
+  height: 10px;
+  width: 10px;
+}
+.scroll-container::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
+}
+.scroll-container::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+.scroll-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+.dark .scroll-container::-webkit-scrollbar-thumb {
+  background: #475569;
+}
+.dark .scroll-container::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+/* Print styles — always render as light paper */
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 10mm;
+  }
+  html,
+  body {
+    background: white !important;
+    color: #0f172a !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: revert !important;
+  }
+  .print-break {
+    page-break-after: always;
+  }
+  .print-container {
+    max-width: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  main {
+    padding: 0 !important;
+  }
+  table {
+    font-size: 10px !important;
+  }
+}
+.print-only {
+  display: none;
+}

@@ -106,23 +106,52 @@ function Get-SessionNote {
     if ($t) { $msgs.Add($t) }
   }
 
-  # 1. Task-Sessions (pro VM)
+  # 1. Session.GetDetails()  (meist kurze Zusammenfassung)
+  try {
+    $details = $Session.GetDetails()
+    if ($DebugVerbose) {
+      Write-Host ("    [dbg] GetDetails -> {0} item(s)" -f @($details).Count)
+    }
+    foreach ($d in $details) {
+      $dTitle = "$($d.Title)".Trim()
+      $dDesc  = "$($d.Description)".Trim()
+      if ($DebugVerbose -and ($dTitle -or $dDesc)) {
+        Write-Host ("    [dbg] detail title='{0}' desc='{1}'" -f $dTitle, $dDesc)
+      }
+      if ($dTitle -match '(?i)warn|fail|error' -or $dDesc -match '(?i)warn|fail|error') {
+        if ($dTitle -and $dDesc -and $dTitle -ne $dDesc) { Add-Msg "$dTitle | $dDesc" }
+        elseif ($dTitle) { Add-Msg $dTitle }
+        elseif ($dDesc)  { Add-Msg $dDesc }
+      }
+    }
+  } catch {
+    if ($DebugVerbose) { Write-Host "    [dbg] GetDetails exception: $_" }
+  }
+
+  # 2. Task-Sessions (pro VM) - Result liegt oft auf .Info.Result
   try {
     $tasks = Get-VBRTaskSession -Session $Session -ErrorAction SilentlyContinue
     if ($DebugVerbose) {
       Write-Host ("    [dbg] Get-VBRTaskSession -> {0} task(s)" -f @($tasks).Count)
     }
     foreach ($t in $tasks) {
-      $tr = "$($t.Result)"
-      if ($DebugVerbose) {
-        Write-Host ("    [dbg] task '{0}' result={1}" -f $t.Name, $tr)
+      $taskResult = $null
+      foreach ($pc in @('Info.Result','Status','Result','Info.Status')) {
+        $v = Get-NestedProperty $t $pc
+        if ($v) { $taskResult = "$v"; break }
       }
-      if ($tr -notmatch '(?i)warning|failed') { continue }
+      if ($DebugVerbose) {
+        Write-Host ("    [dbg] task '{0}' result={1}" -f $t.Name, $taskResult)
+      }
+      if (-not $taskResult -or $taskResult -notmatch '(?i)warning|failed') { continue }
 
       $reason = $null
-      foreach ($pc in @('Info.Reason','Info.Description','Info.Title','Reason','Description','Title')) {
+      foreach ($pc in @('Info.Reason','Info.Description','Info.Title','Info.FailureMessage','Reason','Description','Title','FailureMessage')) {
         $v = Get-NestedProperty $t $pc
         if ($v) { $reason = "$v"; break }
+      }
+      if ($DebugVerbose -and $reason) {
+        Write-Host ("    [dbg] task '{0}' reason='{1}'" -f $t.Name, $reason)
       }
       if ($reason) {
         $name = "$($t.Name)".Trim()
@@ -133,32 +162,52 @@ function Get-SessionNote {
     if ($DebugVerbose) { Write-Host "    [dbg] Get-VBRTaskSession exception: $_" }
   }
 
-  # 2. Session-Log (Title + Description) - haeufigster Ort fuer Retry-Warnungen
+  # 3. Session.Logger.GetLog()  (Fallback statt Get-VBRSessionLog, das manche Versionen nicht haben)
   if ($msgs.Count -eq 0) {
     try {
-      $log = Get-VBRSessionLog -Session $Session -ErrorAction SilentlyContinue
-      if ($DebugVerbose) {
-        Write-Host ("    [dbg] Get-VBRSessionLog -> {0} entry(ies)" -f @($log).Count)
+      $logger = $Session.Logger
+      if ($logger) {
+        $records = @($logger.GetLog())
+        if ($DebugVerbose) {
+          Write-Host ("    [dbg] session.Logger.GetLog() -> {0} record(s)" -f $records.Count)
+        }
+        foreach ($r in $records) {
+          $status = "$($r.Status)"
+          if ($status -notmatch '(?i)warn|fail|error') { continue }
+          $title = "$($r.Title)".Trim()
+          $desc  = "$($r.Description)".Trim()
+          if ($DebugVerbose) {
+            Write-Host ("    [dbg] log [{0}] title='{1}' desc='{2}'" -f $status, $title, $desc)
+          }
+          if ($title -and $desc -and ($desc -ne $title)) { Add-Msg "$title | $desc" }
+          elseif ($title) { Add-Msg $title }
+          elseif ($desc)  { Add-Msg $desc }
+        }
+      } elseif ($DebugVerbose) {
+        Write-Host '    [dbg] session has no Logger property'
       }
+    } catch {
+      if ($DebugVerbose) { Write-Host "    [dbg] Logger.GetLog exception: $_" }
+    }
+  }
+
+  # 4. Get-VBRSessionLog (falls das Cmdlet in dieser Veeam-Version existiert)
+  if ($msgs.Count -eq 0 -and (Get-Command Get-VBRSessionLog -ErrorAction SilentlyContinue)) {
+    try {
+      $log = Get-VBRSessionLog -Session $Session
       foreach ($entry in $log) {
         $lstatus = "$($entry.Status)"
-        if ($DebugVerbose -and $lstatus -match '(?i)warn|fail|error') {
-          Write-Host ("    [dbg] log [{0}] title='{1}' desc='{2}'" -f $lstatus, $entry.Title, $entry.Description)
-        }
         if ($lstatus -notmatch '(?i)warning|failed|error') { continue }
-
         $title = "$($entry.Title)".Trim()
         $desc  = "$($entry.Description)".Trim()
         if ($title -and $desc -and ($desc -ne $title)) { Add-Msg "$title | $desc" }
         elseif ($title) { Add-Msg $title }
         elseif ($desc)  { Add-Msg $desc }
       }
-    } catch {
-      if ($DebugVerbose) { Write-Host "    [dbg] Get-VBRSessionLog exception: $_" }
-    }
+    } catch { }
   }
 
-  # 3. Session- und Info-Properties
+  # 5. Session-Level-Properties (letzter Ausweg)
   if ($msgs.Count -eq 0) {
     foreach ($pc in @('Info.Reason','Info.FailureMessage','Info.Description','Reason','FailureMessage','Description')) {
       $v = Get-NestedProperty $Session $pc
@@ -170,10 +219,28 @@ function Get-SessionNote {
     }
   }
 
-  if ($msgs.Count -eq 0) {
-    if ($DebugVerbose) { Write-Host '    [dbg] no note text found in any source' }
+  # 6. Deep-Debug wenn immer noch nichts gefunden wurde - dumpt alle Session-Props
+  if ($msgs.Count -eq 0 -and $DebugVerbose) {
+    Write-Host '    [dbg] *** deep dump, alle nicht-leeren Session-Properties:'
+    try {
+      $Session | Get-Member -MemberType Properties -ErrorAction SilentlyContinue | ForEach-Object {
+        $n = $_.Name
+        try {
+          $v = $Session.$n
+          if ($null -ne $v) {
+            $vs = "$v"
+            if ($vs.Length -gt 0 -and $vs.Length -lt 200 -and $vs -notmatch '^\s*$') {
+              Write-Host ("      session.{0} = {1}" -f $n, $vs)
+            }
+          }
+        } catch {}
+      }
+    } catch {}
+    Write-Host '    [dbg] no note text found in any source'
     return $null
   }
+
+  if ($msgs.Count -eq 0) { return $null }
 
   $text = (($msgs | Select-Object -Unique) -join ' | ')
   $text = ($text -replace '\s+', ' ').Trim()
@@ -212,7 +279,8 @@ Write-Info "Target date   : $TargetDate"
 Write-Info "Lookback      : $startWindow  ->  $endWindow"
 
 $sessions = Get-VBRBackupSession | Where-Object {
-  $_.EndTime -and $_.EndTime -ge $startWindow -and $_.EndTime -le $endWindow
+  $_.EndTime -and $_.EndTime -ge $startWindow -and $_.EndTime -le $endWindow -and
+  $_.JobName -and "$($_.JobName)".Trim()
 }
 
 # Optional: Agent-Jobs (File-Server etc.)

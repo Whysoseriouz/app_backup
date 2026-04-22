@@ -72,7 +72,7 @@ export function UserMenu() {
               className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 rounded-md cursor-pointer hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 outline-none"
             >
               <KeyRound className="h-4 w-4" />
-              Passwort aendern
+              Passwort ändern
             </DropdownMenu.Item>
             {user.role === 'admin' && (
               <DropdownMenu.Item asChild>
@@ -129,7 +129,7 @@ function PasswordDialog({
     e.preventDefault();
     setError(null);
     if (next !== nextRepeat) {
-      setError('Neue Passwoerter stimmen nicht ueberein');
+      setError('Neue Passwörter stimmen nicht überein');
       return;
     }
     if (!next) {
@@ -145,7 +145,7 @@ function PasswordDialog({
     setPending(false);
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      setError(j.error || 'Fehler beim Aendern');
+      setError(j.error || 'Fehler beim Ändern');
       return;
     }
     setSuccess(true);
@@ -167,7 +167,7 @@ function PasswordDialog({
         <Dialog.Overlay className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm animate-overlay-in dark:bg-black/70" />
         <Dialog.Content className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[min(92vw,420px)] rounded-2xl bg-white ring-1 ring-slate-200 shadow-pop p-5 animate-dialog-in focus:outline-none dark:bg-slate-900 dark:ring-slate-800">
           <Dialog.Title className="text-base font-semibold text-slate-900 dark:text-slate-100">
-            Passwort aendern
+            Passwort ändern
           </Dialog.Title>
           <form onSubmit={handleSubmit} className="mt-4 space-y-3">
             <div>

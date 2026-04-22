@@ -56,7 +56,7 @@ export async function PATCH(
     ).c;
     if (adminCount <= 1) {
       return NextResponse.json(
-        { error: 'Der letzte Admin kann nicht degradiert werden' },
+        { error: 'Der letzte Admin kann nicht degradiert werden.' },
         { status: 409 },
       );
     }
@@ -95,7 +95,7 @@ export async function PATCH(
   }
 
   if (updates.length === 0) {
-    return NextResponse.json({ error: 'keine Aenderungen' }, { status: 400 });
+    return NextResponse.json({ error: 'Keine Änderungen' }, { status: 400 });
   }
 
   updates.push('updated_at = CURRENT_TIMESTAMP');
@@ -141,7 +141,7 @@ export async function DELETE(
 
   if (me.id === targetId) {
     return NextResponse.json(
-      { error: 'Eigener Account kann nicht geloescht werden' },
+      { error: 'Eigener Account kann nicht gelöscht werden' },
       { status: 409 },
     );
   }
@@ -162,7 +162,7 @@ export async function DELETE(
     ).c;
     if (adminCount <= 1) {
       return NextResponse.json(
-        { error: 'Der letzte Admin kann nicht geloescht werden' },
+        { error: 'Der letzte Admin kann nicht gelöscht werden' },
         { status: 409 },
       );
     }

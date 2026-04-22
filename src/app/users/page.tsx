@@ -27,8 +27,8 @@ interface UserRow {
 
 const ROLES: { id: Role; desc: string }[] = [
   { id: 'admin', desc: 'Volle Rechte inkl. Benutzerverwaltung' },
-  { id: 'write', desc: 'Bestaetigen, Jobs verwalten, Sortieren' },
-  { id: 'read', desc: 'Nur lesen — Uebersicht und Bericht' },
+  { id: 'write', desc: 'Bestätigen, Jobs verwalten, Sortieren' },
+  { id: 'read', desc: 'Nur lesen — Übersicht und Bericht' },
 ];
 
 export default function UsersPage() {
@@ -101,7 +101,7 @@ export default function UsersPage() {
     });
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      alert(j.error || 'Fehler beim Loeschen');
+      alert(j.error || 'Fehler beim Löschen');
       return;
     }
     load();
@@ -125,8 +125,8 @@ export default function UsersPage() {
           </h1>
           <p className="text-sm text-slate-500 mt-1 dark:text-slate-400">
             Admins haben vollen Zugriff inkl. Benutzerverwaltung. Schreiben-
-            Nutzer bestaetigen und verwalten Jobs. Lesen-Nutzer sehen nur die
-            Uebersicht und den Bericht.
+            Nutzer bestätigen und verwalten Jobs. Lesen-Nutzer sehen nur die
+            Übersicht und den Bericht.
           </p>
         </div>
 
@@ -223,7 +223,7 @@ export default function UsersPage() {
       <ConfirmDialog
         open={deleteTarget !== null}
         onOpenChange={(v) => !v && setDeleteTarget(null)}
-        title="Benutzer loeschen?"
+        title="Benutzer löschen?"
         description={
           deleteTarget ? (
             <>
@@ -235,7 +235,7 @@ export default function UsersPage() {
             </>
           ) : null
         }
-        confirmLabel="Loeschen"
+        confirmLabel="Löschen"
         variant="destructive"
         onConfirm={confirmDelete}
       />
@@ -295,7 +295,7 @@ function UserRowView({
         <button
           onClick={onDelete}
           disabled={isMe}
-          title={isMe ? 'Eigener Account' : 'Loeschen'}
+          title={isMe ? 'Eigener Account' : 'Löschen'}
           className={cn(
             'p-1.5 rounded-md',
             isMe
@@ -377,7 +377,7 @@ function EditUserDialog({
             <label className="block text-xs font-medium text-slate-600 mb-1 dark:text-slate-400">
               Neues Passwort{' '}
               <span className="text-slate-400 font-normal">
-                (leer lassen = unveraendert)
+                (leer lassen = unverändert)
               </span>
             </label>
             <input
@@ -393,7 +393,7 @@ function EditUserDialog({
               Rolle{' '}
               {isMe && (
                 <span className="text-slate-400 font-normal">
-                  (eigene Rolle nicht aenderbar)
+                  (eigene Rolle nicht änderbar)
                 </span>
               )}
             </label>

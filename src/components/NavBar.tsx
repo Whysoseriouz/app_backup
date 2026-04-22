@@ -1,8 +1,9 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ShieldCheck, LayoutGrid, List, FileText } from 'lucide-react';
+import { LayoutGrid, List, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from './ThemeToggle';
 
@@ -17,10 +18,15 @@ export function NavBar({ badge }: { badge?: number }) {
   return (
     <header className="sticky top-0 z-30 bg-white/90 backdrop-blur border-b-[3px] border-osk-600 dark:bg-slate-950/90 no-print">
       <div className="mx-auto max-w-[1800px] px-4 sm:px-6 py-3 flex items-center gap-4">
-        <Link href="/" className="flex items-center gap-2.5">
-          <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-osk-500 to-osk-700 flex items-center justify-center shadow-soft">
-            <ShieldCheck className="h-5 w-5 text-white" strokeWidth={2.2} />
-          </div>
+        <Link href="/" className="flex items-center gap-3">
+          <Image
+            src="/favicon.png"
+            alt="OrgaSoft Kommunal"
+            width={40}
+            height={40}
+            priority
+            className="h-10 w-10 drop-shadow-sm"
+          />
           <div className="leading-tight">
             <div className="font-bold text-[15px] tracking-tight text-slate-900 dark:text-slate-100">
               Backup Check

@@ -2,15 +2,19 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
+import { getISOWeek } from 'date-fns';
 import { ChevronLeft, ChevronRight, Printer } from 'lucide-react';
 import { NavBar } from '@/components/NavBar';
 import {
   DOW_SHORT,
   MONTH_LONG,
   formatLong,
+  formatShort,
   monthRange,
   shiftMonth,
+  shiftWeek,
   toISO,
+  weekRange,
 } from '@/lib/date';
 import type {
   Confirmation,
@@ -20,14 +24,20 @@ import type {
 import { STATUS_META } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
+type ReportView = 'week' | 'month';
+
 export default function ReportPage() {
+  const [view, setView] = useState<ReportView>('month');
   const [anchor, setAnchor] = useState<Date>(() => new Date());
   const [data, setData] = useState<OverviewPayload>({
     jobs: [],
     confirmations: [],
   });
 
-  const range = useMemo(() => monthRange(anchor), [anchor]);
+  const range = useMemo(
+    () => (view === 'week' ? weekRange(anchor) : monthRange(anchor)),
+    [view, anchor],
+  );
 
   const load = useCallback(async () => {
     const res = await fetch(
@@ -74,6 +84,9 @@ export default function ReportPage() {
   }, [data.confirmations, data.jobs]);
 
   const monthLabel = `${MONTH_LONG[range.start.getMonth()]} ${range.start.getFullYear()}`;
+  const weekLabel = `KW ${getISOWeek(range.start)} · ${formatShort(range.start)} – ${formatShort(range.end)} ${range.start.getFullYear()}`;
+  const rangeLabel = view === 'week' ? weekLabel : monthLabel;
+  const reportTitle = view === 'week' ? 'Backup-Wochenbericht' : 'Backup-Monatsbericht';
 
   return (
     <div className="min-h-screen">
@@ -81,21 +94,46 @@ export default function ReportPage() {
       <main className="mx-auto max-w-[1800px] px-4 sm:px-6 py-6 print-container">
         {/* toolbar */}
         <div className="flex flex-wrap items-center gap-3 mb-5 no-print">
+          <div className="inline-flex rounded-xl bg-white ring-1 ring-slate-200 shadow-soft p-0.5 dark:bg-slate-900 dark:ring-slate-800">
+            {(['week', 'month'] as ReportView[]).map((v) => (
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                className={cn(
+                  'px-3.5 py-1.5 text-sm font-medium rounded-lg transition',
+                  view === v
+                    ? 'bg-osk-50 text-osk-700 dark:bg-osk-500/15 dark:text-osk-300'
+                    : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100',
+                )}
+              >
+                {v === 'week' ? 'Woche' : 'Monat'}
+              </button>
+            ))}
+          </div>
+
           <div className="inline-flex items-center rounded-xl bg-white ring-1 ring-slate-200 shadow-soft overflow-hidden dark:bg-slate-900 dark:ring-slate-800">
             <button
-              onClick={() => setAnchor(shiftMonth(anchor, -1))}
+              onClick={() =>
+                setAnchor(
+                  view === 'week' ? shiftWeek(anchor, -1) : shiftMonth(anchor, -1),
+                )
+              }
               className="p-2 hover:bg-slate-50 text-slate-600 dark:text-slate-400 dark:hover:bg-slate-800"
-              aria-label="Vorheriger Monat"
+              aria-label={view === 'week' ? 'Vorherige Woche' : 'Vorheriger Monat'}
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
-            <div className="px-4 py-1.5 text-sm font-semibold text-slate-800 border-x border-slate-200 min-w-[160px] text-center dark:text-slate-200 dark:border-slate-800">
-              {monthLabel}
+            <div className="px-4 py-1.5 text-sm font-semibold text-slate-800 border-x border-slate-200 min-w-[220px] text-center dark:text-slate-200 dark:border-slate-800">
+              {rangeLabel}
             </div>
             <button
-              onClick={() => setAnchor(shiftMonth(anchor, 1))}
+              onClick={() =>
+                setAnchor(
+                  view === 'week' ? shiftWeek(anchor, 1) : shiftMonth(anchor, 1),
+                )
+              }
               className="p-2 hover:bg-slate-50 text-slate-600 dark:text-slate-400 dark:hover:bg-slate-800"
-              aria-label="Nächster Monat"
+              aria-label={view === 'week' ? 'Nächste Woche' : 'Nächster Monat'}
             >
               <ChevronRight className="h-4 w-4" />
             </button>
@@ -105,7 +143,7 @@ export default function ReportPage() {
             onClick={() => setAnchor(new Date())}
             className="px-3 py-1.5 text-sm font-medium rounded-xl bg-white ring-1 ring-slate-200 text-slate-700 hover:bg-slate-50 shadow-soft dark:bg-slate-900 dark:ring-slate-800 dark:text-slate-300 dark:hover:bg-slate-800"
           >
-            Aktueller Monat
+            {view === 'week' ? 'Aktuelle Woche' : 'Aktueller Monat'}
           </button>
 
           <button
@@ -129,10 +167,10 @@ export default function ReportPage() {
             />
             <div className="flex-1 min-w-0">
               <div className="text-xs uppercase tracking-wider text-slate-500 font-semibold dark:text-slate-400 print:text-slate-500">
-                Backup-Monatsbericht
+                {reportTitle}
               </div>
               <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100 print:text-slate-900">
-                {monthLabel}
+                {rangeLabel}
               </h1>
               <div className="text-xs text-slate-500 mt-0.5 dark:text-slate-400 print:text-slate-500">
                 {formatLong(range.start)} – {formatLong(range.end)} ·{' '}
@@ -192,16 +230,27 @@ export default function ReportPage() {
                       <th
                         key={toISO(d)}
                         className={cn(
-                          'border-b border-slate-300 px-0.5 py-1 text-center font-medium min-w-[22px] dark:border-slate-700 print:border-slate-300',
+                          'border-b border-slate-300 px-0.5 py-1 text-center font-medium dark:border-slate-700 print:border-slate-300',
+                          view === 'week' ? 'min-w-[80px]' : 'min-w-[22px]',
                           isWeekend
                             ? 'bg-slate-50 text-slate-400 dark:bg-slate-800/40 dark:text-slate-500 print:bg-slate-50 print:text-slate-400'
                             : 'text-slate-600 dark:text-slate-400 print:text-slate-600',
                         )}
                       >
-                        <div className="text-[8px] uppercase opacity-70">
+                        <div
+                          className={cn(
+                            'uppercase opacity-70',
+                            view === 'week' ? 'text-[10px]' : 'text-[8px]',
+                          )}
+                        >
                           {DOW_SHORT[dow]}
                         </div>
-                        <div className="text-xs font-semibold">
+                        <div
+                          className={cn(
+                            'font-semibold',
+                            view === 'week' ? 'text-sm' : 'text-xs',
+                          )}
+                        >
                           {d.getDate()}
                         </div>
                       </th>
@@ -230,7 +279,7 @@ export default function ReportPage() {
                               'bg-slate-50/60 dark:bg-slate-800/30 print:bg-slate-50',
                           )}
                         >
-                          <ReportCell status={c?.status} />
+                          <ReportCell status={c?.status} large={view === 'week'} />
                         </td>
                       );
                     })}
@@ -324,7 +373,7 @@ export default function ReportPage() {
 
           {/* footer (print) */}
           <div className="mt-8 pt-4 border-t border-slate-200 text-[10px] text-slate-400 flex justify-between dark:border-slate-800 dark:text-slate-500 print:border-slate-200 print:text-slate-400">
-            <span>Backup Check · {monthLabel}</span>
+            <span>Backup Check · {rangeLabel}</span>
             <span>Seite erzeugt {formatLong(new Date())}</span>
           </div>
         </div>
@@ -333,16 +382,29 @@ export default function ReportPage() {
   );
 }
 
-function ReportCell({ status }: { status?: Status }) {
+function ReportCell({
+  status,
+  large,
+}: {
+  status?: Status;
+  large?: boolean;
+}) {
+  const size = large ? 'h-6 w-6' : 'h-4 w-4';
   if (!status) {
     return (
-      <span className="block h-4 w-4 mx-auto rounded-full border border-dashed border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-900 print:border-slate-300 print:bg-white" />
+      <span
+        className={cn(
+          'block mx-auto rounded-full border border-dashed border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-900 print:border-slate-300 print:bg-white',
+          size,
+        )}
+      />
     );
   }
   return (
     <span
       className={cn(
-        'block h-4 w-4 mx-auto rounded-full',
+        'block mx-auto rounded-full',
+        size,
         STATUS_META[status].dot,
       )}
     />

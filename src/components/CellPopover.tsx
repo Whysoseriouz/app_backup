@@ -35,7 +35,18 @@ export function CellPopover({
   const [selected, setSelected] = useState<Status>('success');
   const [note, setNote] = useState<string>('');
   const [by, setBy] = useState<string>('');
+  // Suppress tooltip briefly after closing the popover so it doesn't
+  // immediately pop up while the cursor is still parked on the cell.
+  const [tooltipSuppressed, setTooltipSuppressed] = useState(false);
   const okBtn = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!open) {
+      setTooltipSuppressed(true);
+      const id = setTimeout(() => setTooltipSuppressed(false), 600);
+      return () => clearTimeout(id);
+    }
+  }, [open]);
 
   useEffect(() => {
     if (open) {
@@ -62,11 +73,15 @@ export function CellPopover({
   }
 
   const current = confirmation?.status;
-  const showTooltip = !!confirmation && !open;
+  // Force tooltip closed when popover is open, when we just closed it, or
+  // when there's no confirmation to describe. Otherwise let Radix track
+  // hover state natively (undefined = uncontrolled).
+  const tooltipOpenProp: boolean | undefined =
+    open || tooltipSuppressed || !confirmation ? false : undefined;
 
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
-      <Tooltip.Root>
+      <Tooltip.Root open={tooltipOpenProp}>
         <Popover.Trigger asChild>
           <Tooltip.Trigger asChild>
             <button
@@ -78,7 +93,7 @@ export function CellPopover({
             </button>
           </Tooltip.Trigger>
         </Popover.Trigger>
-        {showTooltip && (
+        {confirmation && (
           <Tooltip.Portal>
             <Tooltip.Content
               side="top"

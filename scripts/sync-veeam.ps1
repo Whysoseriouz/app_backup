@@ -349,11 +349,43 @@ if (-not $sessions) {
   exit 0
 }
 
-# pro JobName letzten Lauf (Gruppierung ueber die normalisierte Form)
+# pro JobName -> schwerster Status im Fenster (failed > warning > success).
+# Bei Retries gewinnt Failed, selbst wenn eine spaetere Retry "Success" meldet.
+# Dump vorher ALLE Sessions im DryRun, damit man die Entscheidung nachvollziehen kann.
+if ($DryRun) {
+  Write-Info '--- Alle Sessions im Fenster (gruppiert nach JobName) ---'
+  $sessions |
+    Group-Object -Property { Get-NormalizedJobName $_ } |
+    Sort-Object Name |
+    ForEach-Object {
+      $name = $_.Name
+      Write-Host ("  {0}" -f $name)
+      $_.Group | Sort-Object EndTime | ForEach-Object {
+        $mapped = Get-StatusFromResult $_.Result
+        Write-Host ("     end={0}  result={1}  -> {2}" -f $_.EndTime, $_.Result, $mapped)
+      }
+    }
+}
+
 $latestPerJob = $sessions |
   Group-Object -Property { Get-NormalizedJobName $_ } |
   ForEach-Object {
-    $_.Group | Sort-Object EndTime -Descending | Select-Object -First 1
+    $group = $_.Group
+    # Prefer the "worst" status across the whole retry chain so failed
+    # attempts are not masked by a later green run.
+    $rank = @{ success = 0; warning = 1; failed = 2 }
+    $worstStatus = 'success'
+    $worstSession = $group | Sort-Object EndTime -Descending | Select-Object -First 1
+    foreach ($sess in $group) {
+      $st = Get-StatusFromResult $sess.Result
+      if ($rank[$st] -gt $rank[$worstStatus]) {
+        $worstStatus = $st
+        $worstSession = $sess
+      }
+    }
+    # Attach the aggregated status for downstream consumers
+    $worstSession | Add-Member -NotePropertyName _aggregatedStatus -NotePropertyValue $worstStatus -Force
+    $worstSession
   }
 
 Write-Info "Sessions in window: $(@($sessions).Count), unique jobs: $(@($latestPerJob).Count)"
@@ -381,7 +413,7 @@ if ($DryRun -and $latestPerJob) {
 # ----------------------------------------------------------------------------
 $results = foreach ($s in $latestPerJob) {
   $jobName = Get-NormalizedJobName $s
-  $status  = Get-StatusFromResult $s.Result
+  $status  = if ($s._aggregatedStatus) { $s._aggregatedStatus } else { Get-StatusFromResult $s.Result }
   $note    = $null
   if ($status -ne 'success') {
     if ($DryRun) {

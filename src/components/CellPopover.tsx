@@ -3,11 +3,12 @@
 import { useEffect, useRef, useState } from 'react';
 import * as Popover from '@radix-ui/react-popover';
 import * as Tooltip from '@radix-ui/react-tooltip';
-import { Check, X, AlertTriangle, Trash2 } from 'lucide-react';
+import { Check, X, AlertTriangle, Trash2, Lock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Confirmation, Job, Status } from '@/lib/types';
 import { STATUS_META } from '@/lib/types';
 import { formatLong, fromISO } from '@/lib/date';
+import { useCurrentUser } from './CurrentUserContext';
 
 export function CellPopover({
   job,
@@ -28,6 +29,8 @@ export function CellPopover({
   onClear: () => void | Promise<void>;
   children: React.ReactNode;
 }) {
+  const { user } = useCurrentUser();
+  const isAdmin = user?.role === 'admin';
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<Status>('success');
   const [note, setNote] = useState<string>('');
@@ -38,18 +41,17 @@ export function CellPopover({
     if (open) {
       setSelected(confirmation?.status ?? 'success');
       setNote(confirmation?.note ?? '');
-      const stored =
-        typeof window !== 'undefined'
-          ? localStorage.getItem('backup-check:by') || ''
-          : '';
-      setBy(confirmation?.confirmed_by ?? stored);
+      // Non-admin users always quittieren in ihrem eigenen Namen; Admins
+      // duerfen den bestehenden Wert uebernehmen oder frei eingeben.
+      if (isAdmin) {
+        setBy(confirmation?.confirmed_by ?? user?.username ?? '');
+      } else {
+        setBy(user?.username ?? '');
+      }
     }
-  }, [open, confirmation]);
+  }, [open, confirmation, isAdmin, user]);
 
   async function handleSave() {
-    if (by.trim() && typeof window !== 'undefined') {
-      localStorage.setItem('backup-check:by', by.trim());
-    }
     await onSave(selected, note.trim() || null, by.trim() || null);
     setOpen(false);
   }
@@ -168,26 +170,49 @@ export function CellPopover({
           <textarea
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            rows={2}
-            className="mt-1 w-full text-sm rounded-lg ring-1 ring-slate-200 focus:ring-2 focus:ring-osk-500 focus:outline-none px-2.5 py-1.5 resize-none bg-white text-slate-900 placeholder:text-slate-400 dark:ring-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
-            placeholder="z. B. Veeam-Warnung, nachgeholt um 06:00"
-          />
-
-          <label className="block mt-2 text-xs font-medium text-slate-600 dark:text-slate-400">
-            Quittiert von
-          </label>
-          <input
-            value={by}
-            onChange={(e) => setBy(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') {
+              if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 handleSave();
               }
             }}
-            className="mt-1 w-full text-sm rounded-lg ring-1 ring-slate-200 focus:ring-2 focus:ring-osk-500 focus:outline-none px-2.5 py-1.5 bg-white text-slate-900 placeholder:text-slate-400 dark:ring-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
-            placeholder="Dein Name"
+            rows={2}
+            className="mt-1 w-full text-sm rounded-lg ring-1 ring-slate-200 focus:ring-2 focus:ring-osk-500 focus:outline-none px-2.5 py-1.5 resize-none bg-white text-slate-900 placeholder:text-slate-400 dark:ring-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
+            placeholder="z. B. Veeam-Warnung, nachgeholt um 06:00. Enter speichert, Shift+Enter = neue Zeile."
           />
+
+          <label className="block mt-2 text-xs font-medium text-slate-600 dark:text-slate-400">
+            Quittiert von
+            {!isAdmin && (
+              <span className="ml-1 text-slate-400 font-normal">
+                (automatisch)
+              </span>
+            )}
+          </label>
+          <div className="relative mt-1">
+            <input
+              value={by}
+              onChange={(e) => setBy(e.target.value)}
+              readOnly={!isAdmin}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleSave();
+                }
+              }}
+              className={cn(
+                'w-full text-sm rounded-lg ring-1 ring-slate-200 focus:outline-none px-2.5 py-1.5 placeholder:text-slate-400 dark:ring-slate-700 dark:placeholder:text-slate-500',
+                isAdmin
+                  ? 'bg-white text-slate-900 focus:ring-2 focus:ring-osk-500 dark:bg-slate-950 dark:text-slate-100'
+                  : 'bg-slate-50 text-slate-600 cursor-default pr-8 dark:bg-slate-800/50 dark:text-slate-400',
+              )}
+              placeholder="Dein Name"
+              tabIndex={isAdmin ? undefined : -1}
+            />
+            {!isAdmin && (
+              <Lock className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-300 dark:text-slate-600" />
+            )}
+          </div>
 
           <div className="mt-4 flex items-center gap-2">
             {confirmation && (

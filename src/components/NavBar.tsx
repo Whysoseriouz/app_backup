@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { LayoutGrid, List, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from './ThemeToggle';
+import { UserMenu } from './UserMenu';
 
 const items = [
   { href: '/', label: 'Übersicht', icon: LayoutGrid },
@@ -71,6 +72,7 @@ export function NavBar({ badge }: { badge?: number }) {
             </div>
           )}
           <ThemeToggle />
+          <UserMenu />
         </div>
       </div>
     </header>

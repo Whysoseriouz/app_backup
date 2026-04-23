@@ -40,11 +40,13 @@ import {
 } from '@dnd-kit/modifiers';
 import { NavBar } from '@/components/NavBar';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { useCan } from '@/components/CurrentUserContext';
 import type { Job } from '@/lib/types';
 import { SORT_PRESETS, sortJobs, type SortPreset } from '@/lib/sort';
 import { cn } from '@/lib/utils';
 
 export default function JobsPage() {
+  const canWrite = useCan('write');
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<number | null>(null);
@@ -176,12 +178,13 @@ export default function JobsPage() {
             Jobs verwalten
           </h1>
           <p className="text-sm text-slate-500 mt-1 dark:text-slate-400">
-            Aktive Jobs erscheinen in der Übersicht und im Monatsbericht.
-            Reihenfolge per Drag-and-Drop oder Sortier-Preset — wirkt sofort
-            auch auf die Matrix.
+            {canWrite
+              ? 'Aktive Jobs erscheinen in der Übersicht und im Monatsbericht. Reihenfolge per Drag-and-Drop oder Sortier-Preset — wirkt sofort auch auf die Matrix.'
+              : 'Übersicht der aktiven und deaktivierten Jobs. Für Änderungen benötigst du eine Schreiben-Berechtigung.'}
           </p>
         </div>
 
+        {canWrite && (
         <div className="rounded-2xl bg-white ring-1 ring-slate-200 shadow-soft p-4 mb-6 dark:bg-slate-900 dark:ring-slate-800">
           <div className="text-sm font-semibold text-slate-700 mb-3 dark:text-slate-300">
             Neuen Job anlegen
@@ -228,8 +231,10 @@ export default function JobsPage() {
             </div>
           )}
         </div>
+        )}
 
         {/* Sort presets */}
+        {canWrite && (
         <div className="rounded-2xl bg-white ring-1 ring-slate-200 shadow-soft p-4 mb-4 dark:bg-slate-900 dark:ring-slate-800">
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
@@ -268,8 +273,10 @@ export default function JobsPage() {
             </div>
           </div>
         </div>
+        )}
 
         <Section title={`Aktive Jobs · ${active.length}`}>
+          {canWrite ? (
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
@@ -316,6 +323,23 @@ export default function JobsPage() {
               ) : null}
             </DragOverlay>
           </DndContext>
+          ) : (
+            active.map((job) => (
+              <JobRow
+                key={job.id}
+                job={job}
+                editing={false}
+                draft=""
+                onEditStart={() => {}}
+                onEditCancel={() => {}}
+                onDraftChange={() => {}}
+                onEditSave={() => {}}
+                onToggle={() => {}}
+                onDelete={() => {}}
+                readOnly
+              />
+            ))
+          )}
           {active.length === 0 && !loading && (
             <div className="p-6 text-center text-sm text-slate-500 dark:text-slate-400">
               Noch keine aktiven Jobs.
@@ -341,6 +365,7 @@ export default function JobsPage() {
                   onEditSave={() => saveEdit(job.id)}
                   onToggle={() => toggleActive(job)}
                   onDelete={() => setDeleteTarget(job)}
+                  readOnly={!canWrite}
                 />
               ))}
             </Section>
@@ -461,6 +486,7 @@ function JobRow({
   onDelete,
   dragHandle,
   isOverlay,
+  readOnly,
 }: {
   job: Job;
   editing: boolean;
@@ -473,6 +499,7 @@ function JobRow({
   onDelete: () => void;
   dragHandle?: React.ReactNode;
   isOverlay?: boolean;
+  readOnly?: boolean;
 }) {
   return (
     <div
@@ -506,57 +533,59 @@ function JobRow({
           </>
         )}
       </div>
-      <div className="flex items-center gap-1">
-        {editing ? (
-          <>
-            <button
-              onClick={onEditSave}
-              className="p-1.5 rounded-md text-emerald-600 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-500/10"
-              aria-label="Speichern"
-            >
-              <Check className="h-4 w-4" />
-            </button>
-            <button
-              onClick={onEditCancel}
-              className="p-1.5 rounded-md text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
-              aria-label="Abbrechen"
-            >
-              <XIcon className="h-4 w-4" />
-            </button>
-          </>
-        ) : (
-          <>
-            <button
-              onClick={onEditStart}
-              className="p-1.5 rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
-              aria-label="Umbenennen"
-              title="Umbenennen"
-            >
-              <Pencil className="h-4 w-4" />
-            </button>
-            <button
-              onClick={onToggle}
-              className="p-1.5 rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
-              aria-label={job.active ? 'Deaktivieren' : 'Aktivieren'}
-              title={job.active ? 'Deaktivieren' : 'Aktivieren'}
-            >
-              {job.active ? (
-                <PowerOff className="h-4 w-4" />
-              ) : (
-                <Power className="h-4 w-4" />
-              )}
-            </button>
-            <button
-              onClick={onDelete}
-              className="p-1.5 rounded-md text-rose-500 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-500/10"
-              aria-label="Löschen"
-              title="Löschen"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
-          </>
-        )}
-      </div>
+      {!readOnly && (
+        <div className="flex items-center gap-1">
+          {editing ? (
+            <>
+              <button
+                onClick={onEditSave}
+                className="p-1.5 rounded-md text-emerald-600 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-500/10"
+                aria-label="Speichern"
+              >
+                <Check className="h-4 w-4" />
+              </button>
+              <button
+                onClick={onEditCancel}
+                className="p-1.5 rounded-md text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                aria-label="Abbrechen"
+              >
+                <XIcon className="h-4 w-4" />
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={onEditStart}
+                className="p-1.5 rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+                aria-label="Umbenennen"
+                title="Umbenennen"
+              >
+                <Pencil className="h-4 w-4" />
+              </button>
+              <button
+                onClick={onToggle}
+                className="p-1.5 rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+                aria-label={job.active ? 'Deaktivieren' : 'Aktivieren'}
+                title={job.active ? 'Deaktivieren' : 'Aktivieren'}
+              >
+                {job.active ? (
+                  <PowerOff className="h-4 w-4" />
+                ) : (
+                  <Power className="h-4 w-4" />
+                )}
+              </button>
+              <button
+                onClick={onDelete}
+                className="p-1.5 rounded-md text-rose-500 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-500/10"
+                aria-label="Löschen"
+                title="Löschen"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

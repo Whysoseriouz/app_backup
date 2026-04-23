@@ -27,7 +27,7 @@ import { cn } from '@/lib/utils';
 type ReportView = 'week' | 'month';
 
 export default function ReportPage() {
-  const [view, setView] = useState<ReportView>('month');
+  const [view, setView] = useState<ReportView>('week');
   const [anchor, setAnchor] = useState<Date>(() => new Date());
   const [data, setData] = useState<OverviewPayload>({
     jobs: [],

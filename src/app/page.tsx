@@ -51,6 +51,13 @@ export default function HomePage() {
   });
   const [loading, setLoading] = useState(true);
   const [resetDialog, setResetDialog] = useState<{ date: string } | null>(null);
+  // Re-render every minute so that the "heute"-highlight jumps to the new
+  // column at midnight even if the tab was left open overnight.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   const range = useMemo(
     () => (view === 'week' ? weekRange(anchor) : monthRange(anchor)),

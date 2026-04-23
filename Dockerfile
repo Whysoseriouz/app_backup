@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM node:20-slim AS base
+FROM node:22-slim AS base
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 make g++ ca-certificates \
     && rm -rf /var/lib/apt/lists/*
@@ -16,7 +16,7 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
-FROM node:20-slim AS runner
+FROM node:22-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \

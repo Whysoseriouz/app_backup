@@ -17,7 +17,7 @@ import { CellPopover } from '@/components/CellPopover';
 import { StatusDot } from '@/components/StatusDot';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { SyncIndicator } from '@/components/SyncIndicator';
-import { useCan } from '@/components/CurrentUserContext';
+import { useCan, useCurrentUser } from '@/components/CurrentUserContext';
 import {
   DOW_SHORT,
   MONTH_LONG,
@@ -43,6 +43,7 @@ type View = 'week' | 'month';
 
 export default function HomePage() {
   const canWrite = useCan('write');
+  const { user } = useCurrentUser();
   const [view, setView] = useState<View>('week');
   const [anchor, setAnchor] = useState<Date>(new Date());
   const [data, setData] = useState<OverviewPayload>({
@@ -127,10 +128,7 @@ export default function HomePage() {
   }
 
   async function bulkConfirmDay(date: string) {
-    const confirmed_by =
-      typeof window !== 'undefined'
-        ? localStorage.getItem('backup-check:by') || ''
-        : '';
+    const confirmed_by = user?.username ?? '';
     await fetch('/api/confirmations/bulk', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },

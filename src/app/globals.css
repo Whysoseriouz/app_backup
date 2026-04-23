@@ -7,6 +7,15 @@ body {
   height: 100%;
 }
 
+/*
+ * Reserve scrollbar gutter at all times so navigation between pages with
+ * differing content heights doesn't shift horizontally by the scrollbar
+ * width (~15px) when the bar appears/disappears.
+ */
+html {
+  scrollbar-gutter: stable;
+}
+
 @layer base {
   html {
     font-family:

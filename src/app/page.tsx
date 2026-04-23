@@ -325,7 +325,7 @@ export default function HomePage() {
                                 : '',
                           )}
                         >
-                          <div className="flex flex-col items-center">
+                          <div className="flex flex-col items-center gap-1">
                             <div
                               className={cn(
                                 'text-[10px] uppercase tracking-wider opacity-70',
@@ -338,17 +338,24 @@ export default function HomePage() {
                             >
                               {DOW_SHORT[dow]}
                             </div>
-                            <div
-                              className={cn(
-                                'text-base font-semibold leading-tight',
-                                isToday
-                                  ? 'text-osk-700 dark:text-osk-300'
-                                  : isWeekend
-                                    ? 'text-slate-400 dark:text-slate-500'
-                                    : 'text-slate-700 dark:text-slate-300',
-                              )}
-                            >
-                              {d.getDate()}
+                            <div className="flex items-center gap-1.5">
+                              <div
+                                className={cn(
+                                  'text-base font-semibold leading-tight',
+                                  isToday
+                                    ? 'text-osk-700 dark:text-osk-300'
+                                    : isWeekend
+                                      ? 'text-slate-400 dark:text-slate-500'
+                                      : 'text-slate-700 dark:text-slate-300',
+                                )}
+                              >
+                                {d.getDate()}
+                              </div>
+                              <AckIndicator
+                                date={iso}
+                                label={formatLong(d)}
+                                ackedAt={ackMap.get(iso)}
+                              />
                             </div>
                             {canWrite && (
                               <DayActions
@@ -369,11 +376,6 @@ export default function HomePage() {
                                 }
                               />
                             )}
-                            <AckIndicator
-                              date={iso}
-                              label={formatLong(d)}
-                              ackedAt={ackMap.get(iso)}
-                            />
                           </div>
                         </th>
                       );
@@ -603,17 +605,17 @@ function AckIndicator({
           type="button"
           aria-label={title}
           className={cn(
-            'mt-1 inline-flex items-center justify-center h-4 w-4 rounded-full transition',
+            'inline-flex items-center justify-center h-6 w-6 rounded-full transition shrink-0',
             acked
-              ? 'bg-emerald-500 text-white shadow-sm'
-              : 'border border-dashed border-slate-300 bg-transparent text-slate-400 dark:border-slate-600 dark:text-slate-500',
+              ? 'bg-emerald-500 text-white shadow-sm ring-1 ring-emerald-600/40 hover:ring-2 hover:ring-emerald-400'
+              : 'border-2 border-dashed border-slate-300 bg-transparent text-slate-400 hover:border-slate-400 hover:text-slate-600 dark:border-slate-600 dark:text-slate-500 dark:hover:border-slate-500 dark:hover:text-slate-300',
           )}
           data-ack-date={date}
         >
           {acked ? (
-            <BookCheck className="h-3 w-3" strokeWidth={3} />
+            <BookCheck className="h-3.5 w-3.5" strokeWidth={2.75} />
           ) : (
-            <BookOpen className="h-2.5 w-2.5" strokeWidth={2} />
+            <BookOpen className="h-3.5 w-3.5" strokeWidth={2} />
           )}
         </button>
       </Tooltip.Trigger>

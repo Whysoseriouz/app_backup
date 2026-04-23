@@ -16,6 +16,7 @@ const ADMIN_API_PREFIXES = ['/api/users'];
 const AUTHED_WRITE_EXEMPT = new Set([
   '/api/auth/logout',
   '/api/auth/password',
+  '/api/briefing/ack',
 ]);
 
 function getSecret(): Uint8Array {

@@ -17,6 +17,7 @@ import { CellPopover } from '@/components/CellPopover';
 import { StatusDot } from '@/components/StatusDot';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { SyncIndicator } from '@/components/SyncIndicator';
+import { MorningBriefing } from '@/components/MorningBriefing';
 import { useCan, useCurrentUser } from '@/components/CurrentUserContext';
 import {
   DOW_SHORT,
@@ -170,6 +171,8 @@ export default function HomePage() {
       <div className="min-h-screen">
         <NavBar badge={openCountToday} />
         <main className="mx-auto max-w-[1800px] px-4 sm:px-6 py-6">
+          <MorningBriefing onDataChanged={fetchData} />
+
           {/* toolbar */}
           <div className="flex flex-wrap items-center gap-3 mb-5">
             <div className="inline-flex rounded-xl bg-white ring-1 ring-slate-200 shadow-soft p-0.5 dark:bg-slate-900 dark:ring-slate-800">

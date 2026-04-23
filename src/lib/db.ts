@@ -60,6 +60,17 @@ function migrate(db: Database.Database) {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS briefing_ack (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      date TEXT NOT NULL,
+      acked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, date),
+      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_briefing_user_date
+      ON briefing_ack(user_id, date);
   `);
 }
 

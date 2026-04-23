@@ -11,6 +11,8 @@ import {
   Loader2,
   RotateCcw,
   Check,
+  BookCheck,
+  BookOpen,
 } from 'lucide-react';
 import { NavBar } from '@/components/NavBar';
 import { CellPopover } from '@/components/CellPopover';
@@ -51,6 +53,7 @@ export default function HomePage() {
     jobs: [],
     confirmations: [],
   });
+  const [ackMap, setAckMap] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
   const [resetDialog, setResetDialog] = useState<{ date: string } | null>(null);
   // Re-render every minute so that the "heute"-highlight jumps to the new
@@ -67,13 +70,27 @@ export default function HomePage() {
   );
 
   const fetchData = useCallback(async () => {
-    const res = await fetch(
-      `/api/overview?start=${toISO(range.start)}&end=${toISO(range.end)}`,
-      { cache: 'no-store' },
-    );
-    if (res.ok) {
-      const json: OverviewPayload = await res.json();
+    const [overviewRes, ackRes] = await Promise.all([
+      fetch(
+        `/api/overview?start=${toISO(range.start)}&end=${toISO(range.end)}`,
+        { cache: 'no-store' },
+      ),
+      fetch(
+        `/api/briefing/history?start=${toISO(range.start)}&end=${toISO(range.end)}`,
+        { cache: 'no-store' },
+      ),
+    ]);
+    if (overviewRes.ok) {
+      const json: OverviewPayload = await overviewRes.json();
       setData(json);
+    }
+    if (ackRes.ok) {
+      const json = (await ackRes.json()) as {
+        acks: Array<{ date: string; ackedAt: string }>;
+      };
+      const m = new Map<string, string>();
+      for (const a of json.acks) m.set(a.date, a.ackedAt);
+      setAckMap(m);
     }
     setLoading(false);
   }, [range.start, range.end]);
@@ -352,6 +369,11 @@ export default function HomePage() {
                                 }
                               />
                             )}
+                            <AckIndicator
+                              date={iso}
+                              label={formatLong(d)}
+                              ackedAt={ackMap.get(iso)}
+                            />
                           </div>
                         </th>
                       );
@@ -550,6 +572,80 @@ function DayActions({
         <RotateCcw className={iconSize} strokeWidth={2.5} />
       </button>
     </div>
+  );
+}
+
+function AckIndicator({
+  date,
+  label,
+  ackedAt,
+}: {
+  date: string;
+  label: string;
+  ackedAt: string | undefined;
+}) {
+  const acked = Boolean(ackedAt);
+  const time = ackedAt
+    ? new Date(ackedAt.replace(' ', 'T') + 'Z').toLocaleString('de-DE', {
+        day: '2-digit',
+        month: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : null;
+  const title = acked
+    ? `Briefing ${label} gesehen am ${time}`
+    : `Briefing ${label} noch nicht gesehen`;
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>
+        <button
+          type="button"
+          aria-label={title}
+          className={cn(
+            'mt-1 inline-flex items-center justify-center h-4 w-4 rounded-full transition',
+            acked
+              ? 'bg-emerald-500 text-white shadow-sm'
+              : 'border border-dashed border-slate-300 bg-transparent text-slate-400 dark:border-slate-600 dark:text-slate-500',
+          )}
+          data-ack-date={date}
+        >
+          {acked ? (
+            <BookCheck className="h-3 w-3" strokeWidth={3} />
+          ) : (
+            <BookOpen className="h-2.5 w-2.5" strokeWidth={2} />
+          )}
+        </button>
+      </Tooltip.Trigger>
+      <Tooltip.Portal>
+        <Tooltip.Content
+          side="top"
+          sideOffset={6}
+          className="z-40 rounded-md bg-slate-900 text-white px-2.5 py-1.5 text-xs shadow-pop animate-fade-in dark:bg-slate-800 dark:ring-1 dark:ring-slate-700"
+        >
+          {acked ? (
+            <>
+              <div className="font-semibold flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                Briefing gesehen
+              </div>
+              <div className="text-slate-300 mt-0.5">{label}</div>
+              {time && (
+                <div className="text-slate-400 text-[10px] mt-0.5">
+                  am {time} Uhr
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="font-semibold">Briefing offen</div>
+              <div className="text-slate-300 mt-0.5">{label}</div>
+            </>
+          )}
+          <Tooltip.Arrow className="fill-slate-900 dark:fill-slate-800" />
+        </Tooltip.Content>
+      </Tooltip.Portal>
+    </Tooltip.Root>
   );
 }
 

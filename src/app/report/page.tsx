@@ -28,18 +28,26 @@ type ReportView = 'week' | 'month';
 
 export default function ReportPage() {
   const [view, setView] = useState<ReportView>('week');
-  const [anchor, setAnchor] = useState<Date>(() => new Date());
+  // Stable initial anchor avoids Server/Client Date mismatch (Hydration #418).
+  const [anchor, setAnchor] = useState<Date | null>(null);
+  useEffect(() => {
+    setAnchor(new Date());
+  }, []);
   const [data, setData] = useState<OverviewPayload>({
     jobs: [],
     confirmations: [],
   });
 
   const range = useMemo(
-    () => (view === 'week' ? weekRange(anchor) : monthRange(anchor)),
+    () => {
+      if (!anchor) return null;
+      return view === 'week' ? weekRange(anchor) : monthRange(anchor);
+    },
     [view, anchor],
   );
 
   const load = useCallback(async () => {
+    if (!range) return;
     const res = await fetch(
       `/api/overview?start=${toISO(range.start)}&end=${toISO(range.end)}`,
       { cache: 'no-store' },
@@ -47,7 +55,7 @@ export default function ReportPage() {
     if (res.ok) {
       setData(await res.json());
     }
-  }, [range.start, range.end]);
+  }, [range]);
 
   useEffect(() => {
     load();
@@ -61,6 +69,7 @@ export default function ReportPage() {
 
   const stats = useMemo(() => {
     const totals = { success: 0, warning: 0, failed: 0, open: 0 };
+    if (!range) return { ...totals, cells: 0 };
     const days = range.days.length;
     for (const j of data.jobs) {
       for (const d of range.days) {
@@ -71,7 +80,7 @@ export default function ReportPage() {
     }
     const cells = data.jobs.length * days;
     return { ...totals, cells };
-  }, [data.jobs, range.days, confByKey]);
+  }, [data.jobs, range, confByKey]);
 
   const problems = useMemo(() => {
     return data.confirmations
@@ -82,6 +91,16 @@ export default function ReportPage() {
       }))
       .sort((a, b) => (a.date < b.date ? -1 : 1));
   }, [data.confirmations, data.jobs]);
+
+  // Hydration-safe gate: render a stable skeleton until the mount effect
+  // sets the real anchor. Same markup on server and client => no React #418.
+  if (!range) {
+    return (
+      <div className="min-h-screen">
+        <NavBar />
+      </div>
+    );
+  }
 
   const monthLabel = `${MONTH_LONG[range.start.getMonth()]} ${range.start.getFullYear()}`;
   const weekLabel = `KW ${getISOWeek(range.start)} · ${formatShort(range.start)} – ${formatShort(range.end)} ${range.start.getFullYear()}`;
@@ -115,7 +134,7 @@ export default function ReportPage() {
             <button
               onClick={() =>
                 setAnchor(
-                  view === 'week' ? shiftWeek(anchor, -1) : shiftMonth(anchor, -1),
+                  view === 'week' ? shiftWeek(anchor!, -1) : shiftMonth(anchor!, -1),
                 )
               }
               className="p-2 hover:bg-slate-50 text-slate-600 dark:text-slate-400 dark:hover:bg-slate-800"
@@ -129,7 +148,7 @@ export default function ReportPage() {
             <button
               onClick={() =>
                 setAnchor(
-                  view === 'week' ? shiftWeek(anchor, 1) : shiftMonth(anchor, 1),
+                  view === 'week' ? shiftWeek(anchor!, 1) : shiftMonth(anchor!, 1),
                 )
               }
               className="p-2 hover:bg-slate-50 text-slate-600 dark:text-slate-400 dark:hover:bg-slate-800"

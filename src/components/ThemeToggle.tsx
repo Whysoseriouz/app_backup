@@ -28,6 +28,10 @@ export function ThemeToggle() {
       'system';
     setTheme(stored);
     setMounted(true);
+    // Re-apply after mount: a Hydration-Mismatch elsewhere can cause
+    // React to client-rerender <html> and drop the .dark class set by
+    // the inline init script. Re-applying here is the safety net.
+    applyTheme(stored);
 
     const mql = window.matchMedia('(prefers-color-scheme: dark)');
     const handler = () => {

@@ -45,7 +45,12 @@ export default function HomePage() {
   const canWrite = useCan('write');
   const { user } = useCurrentUser();
   const [view, setView] = useState<View>('week');
-  const [anchor, setAnchor] = useState<Date>(new Date());
+  // Stable initial anchor avoids Server/Client Date mismatch (Hydration #418).
+  // The real "now" is set in the mount-effect below.
+  const [anchor, setAnchor] = useState<Date | null>(null);
+  useEffect(() => {
+    setAnchor(new Date());
+  }, []);
   const [data, setData] = useState<OverviewPayload>({
     jobs: [],
     confirmations: [],
@@ -61,11 +66,15 @@ export default function HomePage() {
   }, []);
 
   const range = useMemo(
-    () => (view === 'week' ? weekRange(anchor) : monthRange(anchor)),
+    () => {
+      if (!anchor) return null;
+      return view === 'week' ? weekRange(anchor) : monthRange(anchor);
+    },
     [view, anchor],
   );
 
   const fetchData = useCallback(async () => {
+    if (!range) return;
     const res = await fetch(
       `/api/overview?start=${toISO(range.start)}&end=${toISO(range.end)}`,
       { cache: 'no-store' },
@@ -75,7 +84,7 @@ export default function HomePage() {
       setData(json);
     }
     setLoading(false);
-  }, [range.start, range.end]);
+  }, [range]);
 
   useEffect(() => {
     fetchData();
@@ -156,14 +165,28 @@ export default function HomePage() {
     await fetchData();
   }
 
+  const resetCount = resetDialog
+    ? confirmedPerDay.get(resetDialog.date) || 0
+    : 0;
+
+  // Hydration-safe gate: server and pre-mount client render the same
+  // skeleton (no Date-derived markup) until anchor is set in the mount
+  // effect. Avoids React #418 which used to client-rerender <html> and
+  // strip the .dark class set by the inline theme script.
+  if (!range) {
+    return (
+      <Tooltip.Provider delayDuration={300} skipDelayDuration={100}>
+        <div className="min-h-screen">
+          <NavBar />
+        </div>
+      </Tooltip.Provider>
+    );
+  }
+
   const headerDate =
     view === 'week'
       ? `${formatShort(range.start)} – ${formatLong(range.end)}`
       : `${MONTH_LONG[range.start.getMonth()]} ${range.start.getFullYear()}`;
-
-  const resetCount = resetDialog
-    ? confirmedPerDay.get(resetDialog.date) || 0
-    : 0;
 
   return (
     <Tooltip.Provider delayDuration={300} skipDelayDuration={100}>
@@ -193,7 +216,7 @@ export default function HomePage() {
               <button
                 onClick={() =>
                   setAnchor(
-                    view === 'week' ? shiftWeek(anchor, -1) : shiftMonth(anchor, -1),
+                    view === 'week' ? shiftWeek(anchor!, -1) : shiftMonth(anchor!, -1),
                   )
                 }
                 className="p-2 hover:bg-slate-50 text-slate-600 dark:text-slate-400 dark:hover:bg-slate-800"
@@ -210,7 +233,7 @@ export default function HomePage() {
               <button
                 onClick={() =>
                   setAnchor(
-                    view === 'week' ? shiftWeek(anchor, 1) : shiftMonth(anchor, 1),
+                    view === 'week' ? shiftWeek(anchor!, 1) : shiftMonth(anchor!, 1),
                   )
                 }
                 className="p-2 hover:bg-slate-50 text-slate-600 dark:text-slate-400 dark:hover:bg-slate-800"

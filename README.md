@@ -37,6 +37,7 @@ npm run dev
 
 ## Routen
 
+- `/dashboard` &nbsp;– Morning Briefing mit Handlungsbedarf und 7-Tage-Trend
 - `/` &nbsp;– Matrix-Dashboard (Woche / Monat)
 - `/jobs` &nbsp;– Jobs anlegen, umbenennen, deaktivieren
 - `/report` &nbsp;– Druckbarer Monatsbericht (Strg+P → PDF speichern)

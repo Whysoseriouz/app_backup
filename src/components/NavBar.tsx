@@ -3,12 +3,13 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutGrid, List, FileText } from 'lucide-react';
+import { LayoutDashboard, LayoutGrid, List, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from './ThemeToggle';
 import { UserMenu } from './UserMenu';
 
 const items = [
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/', label: 'Übersicht', icon: LayoutGrid },
   { href: '/jobs', label: 'Jobs', icon: List },
   { href: '/report', label: 'Bericht', icon: FileText },

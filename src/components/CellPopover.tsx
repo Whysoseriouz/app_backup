@@ -14,6 +14,7 @@ export function CellPopover({
   job,
   date,
   confirmation,
+  compact = false,
   onSave,
   onClear,
   children,
@@ -21,6 +22,7 @@ export function CellPopover({
   job: Job;
   date: string;
   confirmation?: Confirmation;
+  compact?: boolean;
   onSave: (
     status: Status,
     note: string | null,
@@ -86,7 +88,10 @@ export function CellPopover({
           <Tooltip.Trigger asChild>
             <button
               type="button"
-              className="group inline-flex items-center justify-center h-9 w-9 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+              className={cn(
+                'group inline-flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer',
+                compact ? 'h-6 w-6' : 'h-9 w-9',
+              )}
               aria-label="Bestätigung"
             >
               {children}

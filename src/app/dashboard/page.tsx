@@ -226,7 +226,7 @@ export default function DashboardPage() {
               <RefreshCw className={cn('h-4 w-4', refreshing && 'animate-spin')} />
             </button>
             <Link
-              href="/"
+              href="/overview"
               className="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
             >
               Matrix
@@ -463,7 +463,7 @@ function IssuePanel({
 
       {items.length > 3 && (
         <Link
-          href="/"
+          href="/overview"
           className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-osk-600 dark:text-osk-300"
         >
           +{items.length - 3} weitere in der Matrix
@@ -590,7 +590,7 @@ function OpenPanel({
             )}
           </div>
           <Link
-            href="/"
+            href="/overview"
             className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-sky-700 dark:text-sky-300"
           >
             Jetzt prüfen

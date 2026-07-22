@@ -9,8 +9,8 @@ import { ThemeToggle } from './ThemeToggle';
 import { UserMenu } from './UserMenu';
 
 const items = [
-  { href: '/dashboard', label: 'Dashboard', icon: Sunrise },
-  { href: '/', label: 'Übersicht', icon: Table2 },
+  { href: '/', label: 'Dashboard', icon: Sunrise },
+  { href: '/overview', label: 'Übersicht', icon: Table2 },
   { href: '/jobs', label: 'Jobs', icon: Server },
   { href: '/report', label: 'Bericht', icon: FileText },
 ];
@@ -47,7 +47,9 @@ export function NavBar({
         <nav className="flex items-center gap-1 ml-1 min-[1050px]:ml-4">
           {items.map((it) => {
             const Icon = it.icon;
-            const active = pathname === it.href;
+            const active =
+              pathname === it.href ||
+              (it.href === '/' && pathname === '/dashboard');
             return (
               <Link
                 key={it.href}

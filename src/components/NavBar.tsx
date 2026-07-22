@@ -25,7 +25,7 @@ export function NavBar({
   const pathname = usePathname();
   return (
     <header className="sticky top-0 z-30 bg-white/90 backdrop-blur border-b-[3px] border-osk-600 dark:bg-slate-950/90 no-print">
-      <div className="mx-auto max-w-[1800px] px-4 sm:px-6 py-3 flex items-center gap-4">
+      <div className="mx-auto max-w-[1800px] px-4 sm:px-6 py-3 flex items-center gap-2 min-[1050px]:gap-4">
         <Link href="/" className="flex items-center gap-3">
           <Image
             src="/favicon.png"
@@ -35,7 +35,7 @@ export function NavBar({
             priority
             className="h-10 w-10 drop-shadow-sm"
           />
-          <div className="leading-tight">
+          <div className="hidden min-[1180px]:block leading-tight">
             <div className="font-bold text-[15px] tracking-tight text-slate-900 dark:text-slate-100">
               Backup Check
             </div>
@@ -44,7 +44,7 @@ export function NavBar({
             </div>
           </div>
         </Link>
-        <nav className="flex items-center gap-1 ml-4">
+        <nav className="flex items-center gap-1 ml-1 min-[1050px]:ml-4">
           {items.map((it) => {
             const Icon = it.icon;
             const active = pathname === it.href;
@@ -52,6 +52,8 @@ export function NavBar({
               <Link
                 key={it.href}
                 href={it.href}
+                aria-label={it.label}
+                title={it.label}
                 className={cn(
                   'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition',
                   active
@@ -60,7 +62,7 @@ export function NavBar({
                 )}
               >
                 <Icon className="h-4 w-4" />
-                {it.label}
+                <span className="hidden min-[1050px]:inline">{it.label}</span>
               </Link>
             );
           })}

@@ -11,6 +11,7 @@ import {
   Cloud,
   Clock3,
   RefreshCw,
+  Repeat2,
   Sunrise,
   TriangleAlert,
 } from 'lucide-react';
@@ -40,6 +41,14 @@ interface DaySummary {
   warning: number;
   failed: number;
   open: number;
+}
+
+interface RecurringIssue {
+  jobId: number;
+  name: string;
+  failed: number;
+  warning: number;
+  total: number;
 }
 
 const DAY_FORMAT = new Intl.DateTimeFormat('de-DE', { weekday: 'short' });
@@ -142,6 +151,29 @@ export default function DashboardPage() {
       ).length,
     [trend],
   );
+  const recurringIssues = useMemo<RecurringIssue[]>(() => {
+    if (!data) return [];
+    const grouped = new Map<number, RecurringIssue>();
+    for (const item of data.confirmations) {
+      if (item.status === 'success') continue;
+      const job = jobsById.get(item.job_id);
+      if (!job) continue;
+      const current = grouped.get(item.job_id) ?? {
+        jobId: item.job_id,
+        name: job.name,
+        failed: 0,
+        warning: 0,
+        total: 0,
+      };
+      current[item.status]++;
+      current.total++;
+      grouped.set(item.job_id, current);
+    }
+    return [...grouped.values()]
+      .filter((item) => item.total > 1)
+      .sort((a, b) => b.total - a.total || b.failed - a.failed)
+      .slice(0, 3);
+  }, [data, jobsById]);
 
   if (!backupDate || loading || !data) {
     return (
@@ -237,24 +269,28 @@ export default function DashboardPage() {
           </aside>
         </div>
 
-        <section className="mt-4 rounded-2xl bg-white px-5 py-4 shadow-soft ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-          <SectionHeader
-            eyebrow="Qualität"
-            title="Letzte 7 Sicherungstage"
-            count={`${healthyDays} von 7 ohne Auffälligkeit`}
-          />
-          <div className="mt-3 grid grid-cols-7 gap-3">
-            {trend.map((day) => (
-              <TrendDay key={day.date} day={day} total={jobs.length} />
-            ))}
-          </div>
-          <div className="mt-2 flex flex-wrap justify-end gap-3 text-[11px] text-slate-400 dark:text-slate-500">
-            <Legend color="bg-emerald-500" label="Erfolg" />
-            <Legend color="bg-amber-500" label="Warnung" />
-            <Legend color="bg-rose-500" label="Fehler" />
-            <Legend color="bg-slate-200 dark:bg-slate-700" label="Offen" />
-          </div>
-        </section>
+        <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,1.45fr)_minmax(280px,0.55fr)]">
+          <section className="rounded-2xl bg-white px-5 py-4 shadow-soft ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+            <SectionHeader
+              eyebrow="Qualität"
+              title="Letzte 7 Sicherungstage"
+              count={`${healthyDays} von 7 ohne Auffälligkeit`}
+            />
+            <div className="mt-3 grid grid-cols-7 gap-3">
+              {trend.map((day) => (
+                <TrendDay key={day.date} day={day} total={jobs.length} />
+              ))}
+            </div>
+            <div className="mt-2 flex flex-wrap justify-end gap-3 text-[11px] text-slate-400 dark:text-slate-500">
+              <Legend color="bg-emerald-500" label="Erfolg" />
+              <Legend color="bg-amber-500" label="Warnung" />
+              <Legend color="bg-rose-500" label="Fehler" />
+              <Legend color="bg-slate-200 dark:bg-slate-700" label="Offen" />
+            </div>
+          </section>
+
+          <RecurringPanel items={recurringIssues} />
+        </div>
       </main>
     </div>
   );
@@ -588,6 +624,70 @@ function SyncPanel({ status, backupDate }: { status: SyncStatus | null; backupDa
       <p className={cn('mt-1 text-[11px]', current ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400')}>
         {current ? 'Aktueller Sicherungstag' : 'Import noch ausstehend'}
       </p>
+    </section>
+  );
+}
+
+function RecurringPanel({ items }: { items: RecurringIssue[] }) {
+  return (
+    <section className="rounded-2xl bg-white px-5 py-4 shadow-soft ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-violet-500 dark:text-violet-400">
+            Muster
+          </p>
+          <h2 className="mt-0.5 text-lg font-bold text-slate-900 dark:text-white">
+            Wiederkehrend
+          </h2>
+        </div>
+        <span className="rounded-xl bg-violet-50 p-2.5 text-violet-600 dark:bg-violet-500/10 dark:text-violet-300">
+          <Repeat2 className="h-5 w-5" />
+        </span>
+      </div>
+
+      {items.length ? (
+        <div className="mt-3 space-y-2">
+          {items.map((item) => (
+            <div
+              key={item.jobId}
+              className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800/55"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <p className="truncate text-xs font-semibold text-slate-800 dark:text-slate-200">
+                  {item.name}
+                </p>
+                <span className="shrink-0 text-[10px] font-semibold text-violet-600 dark:text-violet-300">
+                  {item.total}× auffällig
+                </span>
+              </div>
+              <div className="mt-1 flex items-center gap-2 text-[10px] text-slate-400 dark:text-slate-500">
+                {item.failed > 0 && (
+                  <span className="inline-flex items-center gap-1 text-rose-600 dark:text-rose-400">
+                    <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+                    {item.failed} Fehler
+                  </span>
+                )}
+                {item.warning > 0 && (
+                  <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400">
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                    {item.warning} Warnungen
+                  </span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="flex min-h-28 flex-col items-center justify-center text-center">
+          <CheckCircle2 className="h-6 w-6 text-emerald-500" />
+          <p className="mt-2 text-xs font-semibold text-slate-800 dark:text-slate-200">
+            Keine Wiederholungen
+          </p>
+          <p className="mt-1 text-[10px] text-slate-400 dark:text-slate-500">
+            Kein Job war mehrfach auffällig.
+          </p>
+        </div>
+      )}
     </section>
   );
 }

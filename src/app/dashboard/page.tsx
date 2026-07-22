@@ -23,7 +23,7 @@ import {
   lastBackupDateISO,
   toISO,
 } from '@/lib/date';
-import type { Confirmation, Job, OverviewPayload, Status } from '@/lib/types';
+import type { Confirmation, Job, OverviewPayload } from '@/lib/types';
 import { STATUS_META } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -110,11 +110,12 @@ export default function DashboardPage() {
     () => jobs.filter((job) => !confirmationsByJob.has(job.id)),
     [jobs, confirmationsByJob],
   );
-  const attentionItems = useMemo(
-    () =>
-      currentConfirmations
-        .filter((item) => item.status !== 'success')
-        .sort((a, b) => statusPriority(a.status) - statusPriority(b.status)),
+  const failedItems = useMemo(
+    () => currentConfirmations.filter((item) => item.status === 'failed'),
+    [currentConfirmations],
+  );
+  const warningItems = useMemo(
+    () => currentConfirmations.filter((item) => item.status === 'warning'),
     [currentConfirmations],
   );
   const trend = useMemo<DaySummary[]>(() => {
@@ -134,6 +135,13 @@ export default function DashboardPage() {
       return day;
     });
   }, [backupDate, data, jobs.length]);
+  const healthyDays = useMemo(
+    () =>
+      trend.filter(
+        (day) => day.failed === 0 && day.warning === 0 && day.open === 0,
+      ).length,
+    [trend],
+  );
 
   if (!backupDate || loading || !data) {
     return (
@@ -203,69 +211,53 @@ export default function DashboardPage() {
           <Metric label="Vollständig" value={`${completion} %`} icon={Activity} tone="osk" last />
         </section>
 
-        <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(440px,0.75fr)]">
-          <section className="rounded-2xl bg-white p-5 shadow-soft ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-            <SectionHeader
-              eyebrow="Priorität"
-              title="Handlungsbedarf"
-              count={`${attentionItems.length} auffällig`}
-            />
-
-            {attentionItems.length ? (
-              <div className="mt-4 grid gap-2.5 2xl:grid-cols-2">
-                {attentionItems.slice(0, 4).map((item) => (
-                  <AttentionRow
-                    key={item.id}
-                    confirmation={item}
-                    job={jobsById.get(item.job_id)}
-                  />
-                ))}
-              </div>
-            ) : (
-              <EmptyState
-                icon={CheckCircle2}
-                title="Keine Auffälligkeiten"
-                text="Für diesen Sicherungstag wurden keine Fehler oder Warnungen gemeldet."
-              />
-            )}
-
-            {attentionItems.length > 4 && (
-              <Link href="/" className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-osk-600 dark:text-osk-300">
-                +{attentionItems.length - 4} weitere in der Matrix
-                <ArrowRight className="h-3.5 w-3.5" />
-              </Link>
-            )}
-          </section>
-
+        <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(230px,0.8fr)]">
+          <IssuePanel
+            eyebrow="Kritisch"
+            title="Fehler"
+            items={failedItems}
+            jobsById={jobsById}
+            tone="failed"
+          />
+          <IssuePanel
+            eyebrow="Kontrollieren"
+            title="Warnungen"
+            items={warningItems}
+            jobsById={jobsById}
+            tone="warning"
+          />
           <aside className="grid gap-4">
-            <section className="grid grid-cols-2 overflow-hidden rounded-2xl bg-white shadow-soft ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-              <OpenStatus jobs={openJobs} />
-              <SyncStatusPanel status={syncStatus} backupDate={backupDate} />
-            </section>
-
-            <section className="rounded-2xl bg-white p-5 shadow-soft ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
-              <SectionHeader eyebrow="Verlauf" title="Letzte 7 Sicherungstage" />
-              <div className="mt-4 grid grid-cols-7 gap-2">
-                {trend.map((day) => (
-                  <TrendDay key={day.date} day={day} total={jobs.length} />
-                ))}
-              </div>
-              <div className="mt-3 flex flex-wrap justify-end gap-3 text-[11px] text-slate-400 dark:text-slate-500">
-                <Legend color="bg-emerald-500" label="Erfolg" />
-                <Legend color="bg-amber-500" label="Warnung" />
-                <Legend color="bg-rose-500" label="Fehler" />
-                <Legend color="bg-slate-200 dark:bg-slate-700" label="Offen" />
-              </div>
-            </section>
+            <OpenPanel
+              jobs={openJobs}
+              completed={confirmed}
+              total={jobs.length}
+              completion={completion}
+            />
+            <SyncPanel status={syncStatus} backupDate={backupDate} />
           </aside>
         </div>
+
+        <section className="mt-4 rounded-2xl bg-white px-5 py-4 shadow-soft ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+          <SectionHeader
+            eyebrow="Qualität"
+            title="Letzte 7 Sicherungstage"
+            count={`${healthyDays} von 7 ohne Auffälligkeit`}
+          />
+          <div className="mt-3 grid grid-cols-7 gap-3">
+            {trend.map((day) => (
+              <TrendDay key={day.date} day={day} total={jobs.length} />
+            ))}
+          </div>
+          <div className="mt-2 flex flex-wrap justify-end gap-3 text-[11px] text-slate-400 dark:text-slate-500">
+            <Legend color="bg-emerald-500" label="Erfolg" />
+            <Legend color="bg-amber-500" label="Warnung" />
+            <Legend color="bg-rose-500" label="Fehler" />
+            <Legend color="bg-slate-200 dark:bg-slate-700" label="Offen" />
+          </div>
+        </section>
       </main>
     </div>
   );
-}
-
-function statusPriority(status: Status) {
-  return status === 'failed' ? 0 : status === 'warning' ? 1 : 2;
 }
 
 function getState(
@@ -350,6 +342,102 @@ function SectionHeader({ eyebrow, title, count }: { eyebrow: string; title: stri
   );
 }
 
+function IssuePanel({
+  eyebrow,
+  title,
+  items,
+  jobsById,
+  tone,
+}: {
+  eyebrow: string;
+  title: string;
+  items: Confirmation[];
+  jobsById: Map<number, Job>;
+  tone: 'failed' | 'warning';
+}) {
+  const failed = tone === 'failed';
+  return (
+    <section
+      className={cn(
+        'rounded-2xl bg-white p-5 shadow-soft ring-1 dark:bg-slate-900',
+        failed
+          ? 'ring-rose-200 dark:ring-rose-500/25'
+          : 'ring-amber-200 dark:ring-amber-500/25',
+      )}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span
+            className={cn(
+              'rounded-xl p-2.5',
+              failed
+                ? 'bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-300'
+                : 'bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-300',
+            )}
+          >
+            {failed ? <CircleX className="h-5 w-5" /> : <TriangleAlert className="h-5 w-5" />}
+          </span>
+          <div>
+            <p
+              className={cn(
+                'text-[10px] font-semibold uppercase tracking-[0.18em]',
+                failed
+                  ? 'text-rose-500 dark:text-rose-400'
+                  : 'text-amber-500 dark:text-amber-400',
+              )}
+            >
+              {eyebrow}
+            </p>
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white">{title}</h2>
+          </div>
+        </div>
+        <span
+          className={cn(
+            'inline-flex h-8 min-w-8 items-center justify-center rounded-full px-2 text-sm font-bold',
+            failed
+              ? 'bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-300'
+              : 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300',
+          )}
+        >
+          {items.length}
+        </span>
+      </div>
+
+      {items.length ? (
+        <div className="mt-4 space-y-2.5">
+          {items.slice(0, 4).map((item) => (
+            <AttentionRow
+              key={item.id}
+              confirmation={item}
+              job={jobsById.get(item.job_id)}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="flex min-h-44 flex-col items-center justify-center text-center">
+          <CheckCircle2 className="h-7 w-7 text-emerald-500" />
+          <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-white">
+            Keine {title.toLowerCase()}
+          </p>
+          <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+            Für diesen Sicherungstag ist alles unauffällig.
+          </p>
+        </div>
+      )}
+
+      {items.length > 4 && (
+        <Link
+          href="/"
+          className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-osk-600 dark:text-osk-300"
+        >
+          +{items.length - 4} weitere in der Matrix
+          <ArrowRight className="h-3.5 w-3.5" />
+        </Link>
+      )}
+    </section>
+  );
+}
+
 function AttentionRow({ confirmation, job }: { confirmation: Confirmation; job?: Job }) {
   const failed = confirmation.status === 'failed';
   return (
@@ -360,12 +448,10 @@ function AttentionRow({ confirmation, job }: { confirmation: Confirmation; job?:
       )}
     >
       <div className="flex items-center gap-2">
+        <span className={cn('h-2 w-2 shrink-0 rounded-full', failed ? 'bg-rose-500' : 'bg-amber-500')} />
         <h3 className="truncate text-sm font-semibold text-slate-900 dark:text-white">
           {job?.name ?? `Job ${confirmation.job_id}`}
         </h3>
-        <span className={cn('shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ring-1', STATUS_META[confirmation.status].badge)}>
-          {STATUS_META[confirmation.status].label}
-        </span>
       </div>
       <p className="mt-1 line-clamp-2 min-h-8 break-words text-xs leading-4 text-slate-600 dark:text-slate-300">
         {confirmation.note || 'Keine technische Detailmeldung hinterlegt.'}
@@ -381,36 +467,128 @@ function AttentionRow({ confirmation, job }: { confirmation: Confirmation; job?:
   );
 }
 
-function OpenStatus({ jobs }: { jobs: Job[] }) {
+function OpenPanel({
+  jobs,
+  completed,
+  total,
+  completion,
+}: {
+  jobs: Job[];
+  completed: number;
+  total: number;
+  completion: number;
+}) {
+  const complete = jobs.length === 0;
   return (
-    <div className="border-r border-slate-100 p-4 dark:border-slate-800">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Offene Prüfungen</span>
-        <CircleDashed className="h-4 w-4 text-slate-400" />
+    <section
+      className={cn(
+        'rounded-2xl p-5 shadow-soft ring-1',
+        complete
+          ? 'bg-emerald-50 ring-emerald-200 dark:bg-emerald-500/10 dark:ring-emerald-500/25'
+          : 'bg-sky-50 ring-sky-200 dark:bg-sky-500/10 dark:ring-sky-500/25',
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p
+            className={cn(
+              'text-[10px] font-semibold uppercase tracking-[0.18em]',
+              complete
+                ? 'text-emerald-600 dark:text-emerald-400'
+                : 'text-sky-600 dark:text-sky-400',
+            )}
+          >
+            Prüffortschritt
+          </p>
+          <h2 className="mt-0.5 text-lg font-bold text-slate-900 dark:text-white">
+            Offene Prüfungen
+          </h2>
+        </div>
+        <span
+          className={cn(
+            'rounded-xl p-2.5',
+            complete
+              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
+              : 'bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300',
+          )}
+        >
+          {complete ? <CheckCircle2 className="h-5 w-5" /> : <CircleDashed className="h-5 w-5" />}
+        </span>
       </div>
-      <p className="mt-1 text-2xl font-bold text-slate-950 dark:text-white">{jobs.length}</p>
-      <p className="mt-1 truncate text-[11px] text-slate-400 dark:text-slate-500">
-        {jobs.length ? jobs.slice(0, 3).map((job) => job.name).join(', ') : 'Sicherungstag vollständig'}
+
+      <div className="mt-4 flex items-end justify-between gap-3">
+        <div>
+          <p className="text-4xl font-bold tracking-tight text-slate-950 dark:text-white">{jobs.length}</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            {complete ? 'Alles erledigt' : `von ${total} Jobs ausstehend`}
+          </p>
+        </div>
+        <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{completion} %</span>
+      </div>
+
+      <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/80 dark:bg-slate-950/50">
+        <div
+          className={cn('h-full rounded-full', complete ? 'bg-emerald-500' : 'bg-sky-500')}
+          style={{ width: `${completion}%` }}
+        />
+      </div>
+      <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
+        {completed} von {total} Jobs geprüft
       </p>
-    </div>
+
+      {jobs.length > 0 && (
+        <div className="mt-3">
+          <div className="flex flex-wrap gap-1.5">
+            {jobs.slice(0, 3).map((job) => (
+              <span
+                key={job.id}
+                className="max-w-full truncate rounded-md bg-white/80 px-2 py-1 text-[10px] font-medium text-slate-600 dark:bg-slate-950/40 dark:text-slate-300"
+              >
+                {job.name}
+              </span>
+            ))}
+            {jobs.length > 3 && (
+              <span className="rounded-md bg-white/80 px-2 py-1 text-[10px] font-semibold text-slate-500 dark:bg-slate-950/40 dark:text-slate-400">
+                +{jobs.length - 3}
+              </span>
+            )}
+          </div>
+          <Link
+            href="/"
+            className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-sky-700 dark:text-sky-300"
+          >
+            Jetzt prüfen
+            <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
+        </div>
+      )}
+    </section>
   );
 }
 
-function SyncStatusPanel({ status, backupDate }: { status: SyncStatus | null; backupDate: string }) {
+function SyncPanel({ status, backupDate }: { status: SyncStatus | null; backupDate: string }) {
   const current = status?.last_date === backupDate;
   return (
-    <div className="p-4">
+    <section className="rounded-2xl bg-white p-4 shadow-soft ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Veeam-Sync</span>
-        <Cloud className={cn('h-4 w-4', current ? 'text-emerald-500' : 'text-amber-500')} />
+        <div className="flex items-center gap-2">
+          <Cloud className={cn('h-4 w-4', current ? 'text-emerald-500' : 'text-amber-500')} />
+          <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Veeam-Sync</span>
+        </div>
+        <span
+          className={cn(
+            'h-2 w-2 rounded-full',
+            current ? 'bg-emerald-500' : 'bg-amber-500',
+          )}
+        />
       </div>
-      <p className="mt-1 text-sm font-bold text-slate-950 dark:text-white">
+      <p className="mt-2 text-sm font-bold text-slate-950 dark:text-white">
         {status?.last_at ? formatUtcDateTime(status.last_at) : 'Kein Import'}
       </p>
       <p className={cn('mt-1 text-[11px]', current ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400')}>
         {current ? 'Aktueller Sicherungstag' : 'Import noch ausstehend'}
       </p>
-    </div>
+    </section>
   );
 }
 
@@ -451,16 +629,6 @@ function Legend({ color, label }: { color: string; label: string }) {
       <span className={cn('h-2 w-2 rounded-full', color)} />
       {label}
     </span>
-  );
-}
-
-function EmptyState({ icon: Icon, title, text }: { icon: typeof Activity; title: string; text: string }) {
-  return (
-    <div className="flex min-h-52 flex-col items-center justify-center text-center">
-      <Icon className="h-7 w-7 text-emerald-500" />
-      <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-white">{title}</p>
-      <p className="mt-1 max-w-sm text-xs text-slate-500 dark:text-slate-400">{text}</p>
-    </div>
   );
 }
 

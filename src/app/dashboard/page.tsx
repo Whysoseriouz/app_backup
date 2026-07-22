@@ -395,7 +395,7 @@ function IssuePanel({
   return (
     <section
       className={cn(
-        'rounded-2xl bg-white p-5 shadow-soft ring-1 dark:bg-slate-900',
+        'rounded-2xl bg-white p-4 shadow-soft ring-1 dark:bg-slate-900',
         failed
           ? 'ring-rose-200 dark:ring-rose-500/25'
           : 'ring-amber-200 dark:ring-amber-500/25',
@@ -405,13 +405,13 @@ function IssuePanel({
         <div className="flex items-center gap-3">
           <span
             className={cn(
-              'rounded-xl p-2.5',
+              'rounded-lg p-2',
               failed
                 ? 'bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-300'
                 : 'bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-300',
             )}
           >
-            {failed ? <CircleX className="h-5 w-5" /> : <TriangleAlert className="h-5 w-5" />}
+            {failed ? <CircleX className="h-4 w-4" /> : <TriangleAlert className="h-4 w-4" />}
           </span>
           <div>
             <p
@@ -441,7 +441,7 @@ function IssuePanel({
 
       {items.length ? (
         <div className="mt-4 space-y-2.5">
-          {items.slice(0, 4).map((item) => (
+          {items.slice(0, 3).map((item) => (
             <AttentionRow
               key={item.id}
               confirmation={item}
@@ -461,12 +461,12 @@ function IssuePanel({
         </div>
       )}
 
-      {items.length > 4 && (
+      {items.length > 3 && (
         <Link
           href="/"
           className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-osk-600 dark:text-osk-300"
         >
-          +{items.length - 4} weitere in der Matrix
+          +{items.length - 3} weitere in der Matrix
           <ArrowRight className="h-3.5 w-3.5" />
         </Link>
       )}
@@ -479,7 +479,7 @@ function AttentionRow({ confirmation, job }: { confirmation: Confirmation; job?:
   return (
     <article
       className={cn(
-        'min-w-0 rounded-xl border-l-[3px] bg-slate-50 px-3.5 py-3 dark:bg-slate-800/55',
+        'min-w-0 rounded-lg border-l-[3px] bg-slate-50 px-3 py-2 dark:bg-slate-800/55',
         failed ? 'border-rose-500' : 'border-amber-500',
       )}
     >
@@ -489,10 +489,10 @@ function AttentionRow({ confirmation, job }: { confirmation: Confirmation; job?:
           {job?.name ?? `Job ${confirmation.job_id}`}
         </h3>
       </div>
-      <p className="mt-1 line-clamp-2 min-h-8 break-words text-xs leading-4 text-slate-600 dark:text-slate-300">
+      <p className="mt-1 line-clamp-1 break-words text-xs leading-4 text-slate-600 dark:text-slate-300">
         {confirmation.note || 'Keine technische Detailmeldung hinterlegt.'}
       </p>
-      <div className="mt-2 flex items-center gap-3 text-[10px] text-slate-400 dark:text-slate-500">
+      <div className="mt-1.5 flex items-center gap-3 text-[10px] text-slate-400 dark:text-slate-500">
         <span className="inline-flex items-center gap-1">
           <Clock3 className="h-3 w-3" />
           {formatUtcDateTime(confirmation.confirmed_at)}

@@ -276,7 +276,7 @@ export default function DashboardPage() {
               title="Letzte 7 Sicherungstage"
               count={`${healthyDays} von 7 ohne Auffälligkeit`}
             />
-            <div className="mt-3 grid grid-cols-7 gap-3">
+            <div className="mt-3 grid grid-cols-7 gap-2">
               {trend.map((day) => (
                 <TrendDay key={day.date} day={day} total={jobs.length} />
               ))}
@@ -706,7 +706,7 @@ function TrendDay({ day, total }: { day: DaySummary; total: number }) {
       <p className="text-[10px] font-semibold uppercase text-slate-500 dark:text-slate-400">
         {DAY_FORMAT.format(date).replace('.', '')}
       </p>
-      <div className="mx-auto mt-2 flex h-16 w-5 flex-col-reverse overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+      <div className="mx-auto mt-2 flex h-16 w-full max-w-[88px] flex-col-reverse overflow-hidden rounded-xl bg-slate-100 ring-1 ring-slate-200/70 dark:bg-slate-800 dark:ring-slate-700/70">
         {segments.map((segment, index) => (
           <span
             key={index}

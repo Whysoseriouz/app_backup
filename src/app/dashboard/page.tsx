@@ -706,7 +706,7 @@ function TrendDay({ day, total }: { day: DaySummary; total: number }) {
       <p className="text-[10px] font-semibold uppercase text-slate-500 dark:text-slate-400">
         {DAY_FORMAT.format(date).replace('.', '')}
       </p>
-      <div className="mx-auto mt-2 flex h-16 w-full max-w-[88px] flex-col-reverse overflow-hidden rounded-xl bg-slate-100 ring-1 ring-slate-200/70 dark:bg-slate-800 dark:ring-slate-700/70">
+      <div className="mx-auto mt-2 flex h-16 w-full max-w-[88px] flex-col-reverse overflow-hidden bg-slate-100 ring-1 ring-slate-200/70 dark:bg-slate-800 dark:ring-slate-700/70">
         {segments.map((segment, index) => (
           <span
             key={index}

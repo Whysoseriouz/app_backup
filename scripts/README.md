@@ -5,7 +5,8 @@ Dieses Skript läuft auf dem **Veeam-B&R-Host** und pusht die letzten Session-Er
 ## Voraussetzungen
 
 - Veeam Backup & Replication ≥ 11 mit installiertem PowerShell-Modul (`Veeam.Backup.PowerShell`) oder dem älteren Snapin `VeeamPSSnapin`.
-- Windows PowerShell 5.1 oder PowerShell 7.
+- PowerShell 7 (`pwsh.exe`). Das aktuelle Veeam-PowerShell-Modul benötigt
+  mindestens PowerShell 7; Windows PowerShell 5.1 reicht dafür nicht aus.
 - Netzwerkzugriff vom Veeam-Host auf den Backup-Check-Server (Port 3000 TCP).
 
 ## 1. Token auf der App-Seite setzen
@@ -54,7 +55,7 @@ zurueckgesetzt werden. Zuerst immer die Vorschau ausfuehren:
 ```bash
 node scripts/migrate-confirmation-dates.mjs \
   --db data/backup.db \
-  --through 2026-07-21
+  --through 2026-07-22
 ```
 
 `--through` ist der letzte Tag, der noch nach der alten Datumslogik gespeichert
@@ -63,7 +64,7 @@ wurde. Fuer die Ausfuehrung muss die App gestoppt sein:
 ```bash
 node scripts/migrate-confirmation-dates.mjs \
   --db data/backup.db \
-  --through 2026-07-21 \
+  --through 2026-07-22 \
   --apply --app-stopped
 ```
 
@@ -83,12 +84,12 @@ docker compose stop backup-check
 # Vorschau; Stichtag an den letzten Lauf mit alter Datumslogik anpassen
 docker compose run --rm --no-deps backup-check \
   node scripts/migrate-confirmation-dates.mjs \
-  --db /app/data/backup.db --through 2026-07-21
+  --db /app/data/backup.db --through 2026-07-22
 
 # Erst nach kontrollierter Vorschau ausfuehren
 docker compose run --rm --no-deps backup-check \
   node scripts/migrate-confirmation-dates.mjs \
-  --db /app/data/backup.db --through 2026-07-21 \
+  --db /app/data/backup.db --through 2026-07-22 \
   --apply --app-stopped
 
 docker compose up -d backup-check
@@ -119,6 +120,12 @@ Der Hostname/IP muss auf den Docker-Host zeigen, auf dem Backup Check läuft.
 
 ```powershell
 cd C:\Scripts\BackupCheck
+pwsh.exe -NoProfile -File .\sync-veeam.ps1 -DryRun
+```
+
+Wenn die Sitzung bereits in PowerShell 7 läuft, genügt:
+
+```powershell
 .\sync-veeam.ps1 -DryRun
 ```
 
@@ -151,8 +158,9 @@ Per PowerShell (als Administrator):
 
 ```powershell
 $action = New-ScheduledTaskAction `
-  -Execute 'powershell.exe' `
-  -Argument '-NoProfile -ExecutionPolicy Bypass -File C:\Scripts\BackupCheck\sync-veeam.ps1'
+  -Execute 'C:\Program Files\PowerShell\7\pwsh.exe' `
+  -Argument '-NoProfile -NonInteractive -File "C:\Scripts\BackupCheck\sync-veeam.ps1"' `
+  -WorkingDirectory 'C:\Scripts\BackupCheck'
 
 $trigger = New-ScheduledTaskTrigger -Daily -At 07:00
 
@@ -173,6 +181,10 @@ Laufzeit 07:00 Uhr passt für Backups, die typischerweise zwischen 18 Uhr und 05
 
 ## Troubleshooting
 
+- **Veeam-Modul verlangt PowerShell 7** → Das Skript wurde mit
+  `powershell.exe` (Windows PowerShell 5.1) gestartet. PowerShell 7 öffnen oder
+  explizit `C:\Program Files\PowerShell\7\pwsh.exe` verwenden. Auch die
+  geplante Aufgabe muss auf `pwsh.exe` zeigen.
 - **`No token` beim Skript-Start** → `BACKUP_CHECK_TOKEN` auf dem Veeam-Host nicht gesetzt (neue PowerShell-Session nach `SetEnvironmentVariable` öffnen, Scheduled Task läuft eh mit frischem Environment).
 - **HTTP 401** → Token im Skript stimmt nicht mit `SYNC_TOKEN` im Container überein. App neu starten nach `.env`-Änderung.
 - **HTTP 503** → Container wurde gestartet ohne gesetzten `SYNC_TOKEN`. `docker compose up -d` nach `.env`-Anpassung neu starten.

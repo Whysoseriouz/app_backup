@@ -13,6 +13,12 @@ export function todayISO(): string {
   return format(new Date(), 'yyyy-MM-dd');
 }
 
+// The morning check belongs to the backup run that started on the previous
+// calendar day. The actual check/import timestamp is stored in confirmed_at.
+export function lastBackupDateISO(): string {
+  return format(subDays(new Date(), 1), 'yyyy-MM-dd');
+}
+
 export function toISO(d: Date): string {
   return format(d, 'yyyy-MM-dd');
 }
@@ -70,6 +76,21 @@ export function formatShort(d: Date): string {
 }
 export function formatLong(d: Date): string {
   return format(d, 'dd.MM.yyyy');
+}
+
+export function formatUtcDateTime(value: string): string {
+  const normalized = value.includes('T') ? value : value.replace(' ', 'T');
+  const utc = normalized.endsWith('Z') ? normalized : `${normalized}Z`;
+  const parsed = new Date(utc);
+  if (Number.isNaN(parsed.valueOf())) return value;
+  return new Intl.DateTimeFormat('de-DE', {
+    timeZone: 'Europe/Berlin',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(parsed);
 }
 
 export { addDays, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth };

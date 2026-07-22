@@ -10,6 +10,7 @@ import {
   MONTH_LONG,
   formatLong,
   formatShort,
+  formatUtcDateTime,
   monthRange,
   shiftMonth,
   shiftWeek,
@@ -344,11 +345,12 @@ export default function ReportPage() {
                 <table className="w-full text-xs">
                   <thead className="bg-slate-50 dark:bg-slate-800/40 print:bg-slate-50">
                     <tr className="text-left text-slate-500 dark:text-slate-400 print:text-slate-500">
-                      <th className="px-3 py-2 font-medium">Datum</th>
+                      <th className="px-3 py-2 font-medium">Sicherungstag</th>
                       <th className="px-3 py-2 font-medium">Job</th>
                       <th className="px-3 py-2 font-medium">Status</th>
                       <th className="px-3 py-2 font-medium">Notiz</th>
                       <th className="px-3 py-2 font-medium">Quittiert von</th>
+                      <th className="px-3 py-2 font-medium">Kontrolliert/importiert</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800 print:divide-slate-100">
@@ -381,6 +383,9 @@ export default function ReportPage() {
                         </td>
                         <td className="px-3 py-1.5 text-slate-500 dark:text-slate-400 print:text-slate-500">
                           {p.confirmed_by || '—'}
+                        </td>
+                        <td className="px-3 py-1.5 whitespace-nowrap text-slate-500 dark:text-slate-400 print:text-slate-500">
+                          {formatUtcDateTime(p.confirmed_at)}
                         </td>
                       </tr>
                     ))}

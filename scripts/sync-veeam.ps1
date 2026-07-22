@@ -6,11 +6,15 @@
   Runs on the Veeam Backup & Replication host. Reads completed sessions
   from the last N hours (default 18), keeps the latest session per job,
   maps Success/Warning/Failed and POSTs the batch to /api/sync on the
-  Backup Check server. Manual quittances in the app are never overwritten.
+  Backup Check server. Results are booked under the logical backup date;
+  the app records the actual import/check time separately. Manual quittances
+  in the app are never overwritten.
 
 .PARAMETER TargetDate
-  Date (YYYY-MM-DD) that the results should be booked under in Backup Check.
-  Default: today.
+  Logical backup/run date (YYYY-MM-DD) that the results should be booked
+  under in Backup Check. For a nightly run that starts on Monday and finishes
+  on Tuesday morning, this is Monday. Default: yesterday, intended for the
+  scheduled morning sync. Pass -TargetDate explicitly for manual/backfill runs.
 
 .PARAMETER LookbackHours
   How many hours to look back for finished sessions. Default: 18.
@@ -39,7 +43,7 @@
 
 [CmdletBinding()]
 param(
-  [string] $TargetDate       = (Get-Date -Format 'yyyy-MM-dd'),
+  [string] $TargetDate       = ((Get-Date).AddDays(-1).ToString('yyyy-MM-dd')),
   [int]    $LookbackHours    = 18,
   [string] $Endpoint         = $(if ($env:BACKUP_CHECK_URL) { $env:BACKUP_CHECK_URL } else { 'http://localhost:3000/api/sync' }),
   [string] $Token            = $env:BACKUP_CHECK_TOKEN,
@@ -52,6 +56,20 @@ $ErrorActionPreference = 'Stop'
 function Write-Info ($m) { Write-Host "[Backup-Check] $m" }
 function Write-Warn ($m) { Write-Warning "[Backup-Check] $m" }
 function Write-Fail ($m) { Write-Error   "[Backup-Check] $m" }
+
+# TargetDate ist der fachliche Sicherungstag, nicht der Zeitpunkt, an dem
+# dieses Skript laeuft. Der Server setzt confirmed_at beim Import automatisch.
+try {
+  $parsedTargetDate = [datetime]::ParseExact(
+    $TargetDate,
+    'yyyy-MM-dd',
+    [System.Globalization.CultureInfo]::InvariantCulture
+  )
+  $TargetDate = $parsedTargetDate.ToString('yyyy-MM-dd')
+} catch {
+  Write-Fail "Invalid TargetDate '$TargetDate'. Expected YYYY-MM-DD."
+  exit 2
+}
 
 # ----------------------------------------------------------------------------
 # Result -> App-Status
@@ -307,7 +325,8 @@ if (-not $Token -and -not $DryRun) {
 # ----------------------------------------------------------------------------
 $endWindow   = Get-Date
 $startWindow = $endWindow.AddHours(-$LookbackHours)
-Write-Info "Target date   : $TargetDate"
+Write-Info "Backup date   : $TargetDate"
+Write-Info "Sync/check at : $endWindow"
 Write-Info "Lookback      : $startWindow  ->  $endWindow"
 
 $sessions = Get-VBRBackupSession | Where-Object {
@@ -349,9 +368,10 @@ if (-not $sessions) {
   exit 0
 }
 
-# pro JobName -> schwerster Status im Fenster (failed > warning > success).
-# Bei Retries gewinnt Failed, selbst wenn eine spaetere Retry "Success" meldet.
-# Dump vorher ALLE Sessions im DryRun, damit man die Entscheidung nachvollziehen kann.
+# Pro JobName entscheidet ausschliesslich die zuletzt beendete Session.
+# Damit wird ein Job nach einem erfolgreichen Retry als "success" gemeldet.
+# Im DryRun werden weiterhin alle Sessions angezeigt, damit die Auswahl
+# nachvollziehbar bleibt.
 if ($DryRun) {
   Write-Info '--- Alle Sessions im Fenster (gruppiert nach JobName) ---'
   $sessions |
@@ -370,22 +390,9 @@ if ($DryRun) {
 $latestPerJob = $sessions |
   Group-Object -Property { Get-NormalizedJobName $_ } |
   ForEach-Object {
-    $group = $_.Group
-    # Prefer the "worst" status across the whole retry chain so failed
-    # attempts are not masked by a later green run.
-    $rank = @{ success = 0; warning = 1; failed = 2 }
-    $worstStatus = 'success'
-    $worstSession = $group | Sort-Object EndTime -Descending | Select-Object -First 1
-    foreach ($sess in $group) {
-      $st = Get-StatusFromResult $sess.Result
-      if ($rank[$st] -gt $rank[$worstStatus]) {
-        $worstStatus = $st
-        $worstSession = $sess
-      }
-    }
-    # Attach the aggregated status for downstream consumers
-    $worstSession | Add-Member -NotePropertyName _aggregatedStatus -NotePropertyValue $worstStatus -Force
-    $worstSession
+    $_.Group |
+      Sort-Object EndTime -Descending |
+      Select-Object -First 1
   }
 
 Write-Info "Sessions in window: $(@($sessions).Count), unique jobs: $(@($latestPerJob).Count)"
@@ -413,7 +420,7 @@ if ($DryRun -and $latestPerJob) {
 # ----------------------------------------------------------------------------
 $results = foreach ($s in $latestPerJob) {
   $jobName = Get-NormalizedJobName $s
-  $status  = if ($s._aggregatedStatus) { $s._aggregatedStatus } else { Get-StatusFromResult $s.Result }
+  $status  = Get-StatusFromResult $s.Result
   $note    = $null
   if ($status -ne 'success') {
     if ($DryRun) {

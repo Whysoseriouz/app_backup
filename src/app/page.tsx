@@ -24,10 +24,10 @@ import {
   formatLong,
   formatShort,
   fromISO,
+  lastBackupDateISO,
   monthRange,
   shiftMonth,
   shiftWeek,
-  todayISO,
   toISO,
   weekRange,
 } from '@/lib/date';
@@ -57,8 +57,8 @@ export default function HomePage() {
   });
   const [loading, setLoading] = useState(true);
   const [resetDialog, setResetDialog] = useState<{ date: string } | null>(null);
-  // Re-render every minute so that the "heute"-highlight jumps to the new
-  // column at midnight even if the tab was left open overnight.
+  // Re-render every minute so that the current backup-day highlight moves at
+  // midnight even if the tab was left open overnight.
   const [, setTick] = useState(0);
   useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), 60_000);
@@ -104,15 +104,15 @@ export default function HomePage() {
     return m;
   }, [data.confirmations]);
 
-  const today = todayISO();
-  const openCountToday = useMemo(
+  const backupDate = lastBackupDateISO();
+  const openCountBackupDate = useMemo(
     () =>
-      data.jobs.filter((j) => !confByKey.has(`${j.id}:${today}`)).length,
-    [data.jobs, confByKey, today],
+      data.jobs.filter((j) => !confByKey.has(`${j.id}:${backupDate}`)).length,
+    [data.jobs, confByKey, backupDate],
   );
-  const confirmedCountToday = data.jobs.length - openCountToday;
+  const confirmedCountBackupDate = data.jobs.length - openCountBackupDate;
   const bulkButtonLabel =
-    confirmedCountToday > 0 ? 'Den Rest OK' : 'Heute alles OK';
+    confirmedCountBackupDate > 0 ? 'Rest des Sicherungstags OK' : 'Sicherungstag alles OK';
 
   async function upsertConfirmation(
     job_id: number,
@@ -191,7 +191,10 @@ export default function HomePage() {
   return (
     <Tooltip.Provider delayDuration={300} skipDelayDuration={100}>
       <div className="min-h-screen">
-        <NavBar badge={openCountToday} />
+        <NavBar
+          badge={openCountBackupDate}
+          badgeDate={formatLong(fromISO(backupDate))}
+        />
         <main className="mx-auto max-w-[1800px] px-4 sm:px-6 py-6">
           {/* toolbar */}
           <div className="flex flex-wrap items-center gap-3 mb-5">
@@ -257,39 +260,39 @@ export default function HomePage() {
             {canWrite && (
               <div className="ml-auto flex items-center gap-2">
                 <button
-                  onClick={() => askResetDay(today)}
-                  disabled={confirmedCountToday === 0}
-                  title="Alle heutigen Quittungen löschen"
+                  onClick={() => askResetDay(backupDate)}
+                  disabled={confirmedCountBackupDate === 0}
+                  title={`Alle Quittungen für den Sicherungstag ${formatLong(fromISO(backupDate))} löschen`}
                   className={cn(
                     'inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium transition',
-                    confirmedCountToday === 0
+                    confirmedCountBackupDate === 0
                       ? 'text-slate-400 dark:text-slate-600 cursor-not-allowed'
                       : 'text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-500/10',
                   )}
                 >
                   <RotateCcw className="h-4 w-4" />
-                  Heute zurücksetzen
-                  {confirmedCountToday > 0 && (
+                  Sicherungstag zurücksetzen
+                  {confirmedCountBackupDate > 0 && (
                     <span className="ml-1 text-xs text-rose-500/80 dark:text-rose-400/80">
-                      ({confirmedCountToday})
+                      ({confirmedCountBackupDate})
                     </span>
                   )}
                 </button>
                 <button
-                  onClick={() => bulkConfirmDay(today)}
-                  disabled={openCountToday === 0}
+                  onClick={() => bulkConfirmDay(backupDate)}
+                  disabled={openCountBackupDate === 0}
                   className={cn(
                     'inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold shadow-soft transition',
-                    openCountToday === 0
+                    openCountBackupDate === 0
                       ? 'bg-slate-100 text-slate-400 cursor-not-allowed dark:bg-slate-800 dark:text-slate-600'
                       : 'bg-emerald-500 hover:bg-emerald-600 text-white',
                   )}
                 >
                   <CheckCheck className="h-4 w-4" />
                   {bulkButtonLabel}
-                  {openCountToday > 0 && (
+                  {openCountBackupDate > 0 && (
                     <span className="ml-1 inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-white/20 text-white text-xs">
-                      {openCountToday}
+                      {openCountBackupDate}
                     </span>
                   )}
                 </button>
@@ -308,7 +311,7 @@ export default function HomePage() {
                     </th>
                     {range.days.map((d) => {
                       const iso = toISO(d);
-                      const isToday = iso === today;
+                      const isBackupDate = iso === backupDate;
                       const dow = (d.getDay() + 6) % 7;
                       const isWeekend = dow >= 5;
                       const confirmed = confirmedPerDay.get(iso) || 0;
@@ -321,7 +324,7 @@ export default function HomePage() {
                             view === 'week'
                               ? 'min-w-[78px]'
                               : 'min-w-[46px]',
-                            isToday
+                            isBackupDate
                               ? 'bg-osk-50/60 dark:bg-osk-500/15'
                               : isWeekend
                                 ? 'bg-slate-50/50 dark:bg-slate-800/30'
@@ -332,7 +335,7 @@ export default function HomePage() {
                             <div
                               className={cn(
                                 'text-[10px] uppercase tracking-wider opacity-70',
-                                isToday
+                                isBackupDate
                                   ? 'text-osk-700 dark:text-osk-300'
                                   : isWeekend
                                     ? 'text-slate-400 dark:text-slate-500'
@@ -344,7 +347,7 @@ export default function HomePage() {
                             <div
                               className={cn(
                                 'text-base font-semibold leading-tight',
-                                isToday
+                                isBackupDate
                                   ? 'text-osk-700 dark:text-osk-300'
                                   : isWeekend
                                     ? 'text-slate-400 dark:text-slate-500'
@@ -392,7 +395,7 @@ export default function HomePage() {
                       {range.days.map((d) => {
                         const iso = toISO(d);
                         const conf = confByKey.get(`${job.id}:${iso}`);
-                        const isToday = iso === today;
+                        const isBackupDate = iso === backupDate;
                         const dow = (d.getDay() + 6) % 7;
                         const isWeekend = dow >= 5;
                         return (
@@ -400,7 +403,7 @@ export default function HomePage() {
                             key={iso}
                             className={cn(
                               'border-b border-slate-100 text-center p-0 dark:border-slate-800',
-                              isToday
+                              isBackupDate
                                 ? 'bg-osk-50/40 group-hover:bg-osk-100/60 dark:bg-osk-500/10 dark:group-hover:bg-osk-500/20'
                                 : isWeekend
                                   ? 'bg-slate-50/30 group-hover:bg-slate-100/70 dark:bg-slate-800/20 dark:group-hover:bg-slate-800/50'

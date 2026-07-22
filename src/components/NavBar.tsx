@@ -14,7 +14,13 @@ const items = [
   { href: '/report', label: 'Bericht', icon: FileText },
 ];
 
-export function NavBar({ badge }: { badge?: number }) {
+export function NavBar({
+  badge,
+  badgeDate,
+}: {
+  badge?: number;
+  badgeDate?: string;
+}) {
   const pathname = usePathname();
   return (
     <header className="sticky top-0 z-30 bg-white/90 backdrop-blur border-b-[3px] border-osk-600 dark:bg-slate-950/90 no-print">
@@ -62,13 +68,13 @@ export function NavBar({ badge }: { badge?: number }) {
           {typeof badge === 'number' && badge > 0 && (
             <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 text-amber-800 ring-1 ring-amber-600/20 px-3 py-1 text-xs font-medium dark:bg-amber-500/15 dark:text-amber-300 dark:ring-amber-400/30">
               <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
-              {badge} offen heute
+              {badge} offen{badgeDate ? ` für ${badgeDate}` : ''}
             </div>
           )}
           {typeof badge === 'number' && badge === 0 && (
             <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 text-emerald-800 ring-1 ring-emerald-600/20 px-3 py-1 text-xs font-medium dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-400/30">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              Heute alles bestätigt
+              {badgeDate ? `${badgeDate} vollständig` : 'Alles bestätigt'}
             </div>
           )}
           <ThemeToggle />

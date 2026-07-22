@@ -5,6 +5,10 @@ wird pro Tag der Status (Erfolg / Warnung / Fehler) manuell bestätigt.
 Enthält Wochen- und Monatsansicht, Ein-Klick-Bestätigung für den ganzen Tag,
 Job-Verwaltung und einen druckbaren Monatsbericht.
 
+Die Datumsspalten stehen für den **Sicherungstag**: Ein Lauf von Montagabend
+bis Dienstagmorgen wird unter Montag geführt. Der tatsächliche Kontroll- oder
+Importzeitpunkt wird separat als `confirmed_at` gespeichert und angezeigt.
+
 ## Schnellstart (Docker)
 
 ```bash

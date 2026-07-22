@@ -7,7 +7,7 @@ import { Check, X, AlertTriangle, Trash2, Lock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Confirmation, Job, Status } from '@/lib/types';
 import { STATUS_META } from '@/lib/types';
-import { formatLong, fromISO } from '@/lib/date';
+import { formatLong, formatUtcDateTime, fromISO } from '@/lib/date';
 import { useCurrentUser } from './CurrentUserContext';
 
 export function CellPopover({
@@ -120,6 +120,12 @@ export function CellPopover({
                   von {confirmation!.confirmed_by}
                 </div>
               )}
+              <div className="mt-1 text-[10px] text-slate-400">
+                {confirmation!.confirmed_by === 'Veeam-Sync'
+                  ? 'importiert'
+                  : 'kontrolliert'}{' '}
+                am {formatUtcDateTime(confirmation!.confirmed_at)}
+              </div>
               <Tooltip.Arrow className="fill-slate-900 dark:fill-slate-800" />
             </Tooltip.Content>
           </Tooltip.Portal>
@@ -140,7 +146,7 @@ export function CellPopover({
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <div className="text-xs text-slate-500 dark:text-slate-400">
-                {formatLong(fromISO(date))}
+                Sicherungstag · {formatLong(fromISO(date))}
               </div>
               <div className="font-semibold text-slate-900 dark:text-slate-100 truncate">
                 {job.name}

@@ -194,7 +194,7 @@ export default function DashboardPage() {
     <div className="min-h-screen">
       <NavBar badge={openJobs.length} badgeDate={formatLong(fromISO(backupDate))} />
 
-      <main className="mx-auto max-w-[1800px] px-5 py-4 sm:px-6">
+      <main className="mx-auto max-w-[1800px] px-5 pb-3 pt-4 sm:px-6">
         <header className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <span className={cn('rounded-xl p-2.5', state.icon)}>
@@ -269,8 +269,8 @@ export default function DashboardPage() {
           </aside>
         </div>
 
-        <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,1.45fr)_minmax(280px,0.55fr)]">
-          <section className="rounded-2xl bg-white px-5 py-4 shadow-soft ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+        <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(230px,0.8fr)]">
+          <section className="rounded-2xl bg-white px-5 py-3 shadow-soft ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 md:col-span-2">
             <SectionHeader
               eyebrow="Qualität"
               title="Letzte 7 Sicherungstage"
@@ -630,7 +630,7 @@ function SyncPanel({ status, backupDate }: { status: SyncStatus | null; backupDa
 
 function RecurringPanel({ items }: { items: RecurringIssue[] }) {
   return (
-    <section className="rounded-2xl bg-white px-5 py-4 shadow-soft ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+    <section className="rounded-2xl bg-white px-5 py-3 shadow-soft ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-violet-500 dark:text-violet-400">
@@ -706,7 +706,7 @@ function TrendDay({ day, total }: { day: DaySummary; total: number }) {
       <p className="text-[10px] font-semibold uppercase text-slate-500 dark:text-slate-400">
         {DAY_FORMAT.format(date).replace('.', '')}
       </p>
-      <div className="mx-auto mt-2 flex h-20 w-5 flex-col-reverse overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+      <div className="mx-auto mt-2 flex h-16 w-5 flex-col-reverse overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
         {segments.map((segment, index) => (
           <span
             key={index}

@@ -12,13 +12,14 @@ interface UserRow {
   role: Role;
   created_at: string;
   updated_at: string;
+  last_login_at: string | null;
 }
 
 export async function GET() {
   const db = getDb();
   const rows = db
     .prepare(
-      'SELECT id, username, role, created_at, updated_at FROM users ORDER BY role DESC, username COLLATE NOCASE',
+      'SELECT id, username, role, created_at, updated_at, last_login_at FROM users ORDER BY role DESC, username COLLATE NOCASE',
     )
     .all() as UserRow[];
   return NextResponse.json(rows);
@@ -60,7 +61,7 @@ export async function POST(req: NextRequest) {
       .run(username, hash, role);
     const user = db
       .prepare(
-        'SELECT id, username, role, created_at, updated_at FROM users WHERE id = ?',
+        'SELECT id, username, role, created_at, updated_at, last_login_at FROM users WHERE id = ?',
       )
       .get(info.lastInsertRowid) as UserRow;
     return NextResponse.json(user);

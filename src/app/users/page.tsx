@@ -15,6 +15,7 @@ import { NavBar } from '@/components/NavBar';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useCurrentUser } from '@/components/CurrentUserContext';
 import { ROLE_BADGE, ROLE_LABEL, type Role } from '@/lib/auth';
+import { formatUtcDateTime } from '@/lib/date';
 import { cn } from '@/lib/utils';
 
 interface UserRow {
@@ -23,6 +24,7 @@ interface UserRow {
   role: Role;
   created_at: string;
   updated_at: string;
+  last_login_at: string | null;
 }
 
 const ROLES: { id: Role; desc: string }[] = [
@@ -273,7 +275,11 @@ function UserRowView({
           )}
         </div>
         <div className="text-xs text-slate-400 dark:text-slate-500">
-          Angelegt {new Date(user.created_at.replace(' ', 'T') + 'Z').toLocaleDateString('de-DE')}
+          Angelegt {formatUtcDateTime(user.created_at).split(',')[0]}
+          {' · '}
+          {user.last_login_at
+            ? `Letzte Anmeldung ${formatUtcDateTime(user.last_login_at)}`
+            : 'Noch keine Anmeldung erfasst'}
         </div>
       </div>
       <span

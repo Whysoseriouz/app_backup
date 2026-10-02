@@ -17,7 +17,8 @@ import { CellPopover } from '@/components/CellPopover';
 import { StatusDot } from '@/components/StatusDot';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { SyncIndicator } from '@/components/SyncIndicator';
-import { useCan, useCurrentUser } from '@/components/CurrentUserContext';
+import { UnknownJobsPanel } from '@/components/UnknownJobsPanel';
+import { useCan } from '@/components/CurrentUserContext';
 import {
   DOW_SHORT,
   MONTH_LONG,
@@ -43,7 +44,6 @@ type View = 'week' | 'month';
 
 export default function HomePage() {
   const canWrite = useCan('write');
-  const { user } = useCurrentUser();
   const [view, setView] = useState<View>('week');
   // Stable initial anchor avoids Server/Client Date mismatch (Hydration #418).
   // The real "now" is set in the mount-effect below.
@@ -137,14 +137,12 @@ export default function HomePage() {
   }
 
   async function bulkConfirmDay(date: string) {
-    const confirmed_by = user?.username ?? '';
     await fetch('/api/confirmations/bulk', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         date,
         status: 'success',
-        confirmed_by,
         overwrite: false,
       }),
     });
@@ -299,6 +297,8 @@ export default function HomePage() {
               </div>
             )}
           </div>
+
+          <UnknownJobsPanel onChanged={fetchData} className="mb-5" />
 
           {/* matrix */}
           <div className="rounded-2xl bg-white ring-1 ring-slate-200 shadow-soft overflow-hidden dark:bg-slate-900 dark:ring-slate-800">

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
+import { getCurrentUser } from '@/lib/auth-server';
 import type { Confirmation, Status } from '@/lib/types';
+import { SYNC_AUTHOR } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -8,6 +10,10 @@ export const runtime = 'nodejs';
 const VALID: Status[] = ['success', 'warning', 'failed'];
 
 export async function POST(req: NextRequest) {
+  const me = await getCurrentUser();
+  if (!me) {
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  }
   const body = await req.json();
   const { job_id, date, status, note, confirmed_by } = body as {
     job_id: number;
@@ -24,6 +30,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'invalid status' }, { status: 400 });
   }
 
+  // Non-admins always confirm in their own name. Admins may enter a name,
+  // but never the sync author: a manual edit must not stay marked as
+  // Veeam-Sync, otherwise the next sync run would overwrite it.
+  const requested = confirmed_by?.trim();
+  const author =
+    me.role === 'admin' && requested && requested !== SYNC_AUTHOR
+      ? requested
+      : me.username;
+
   const db = getDb();
   db.prepare(
     `
@@ -35,7 +50,7 @@ export async function POST(req: NextRequest) {
       confirmed_by = excluded.confirmed_by,
       confirmed_at = CURRENT_TIMESTAMP
   `,
-  ).run(job_id, date, status, note || null, confirmed_by || null);
+  ).run(job_id, date, status, note || null, author);
 
   const updated = db
     .prepare('SELECT * FROM confirmations WHERE job_id = ? AND date = ?')

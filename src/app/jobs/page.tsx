@@ -42,6 +42,8 @@ import { NavBar } from '@/components/NavBar';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useCan } from '@/components/CurrentUserContext';
 import type { Job } from '@/lib/types';
+import { JOB_TYPES } from '@/lib/types';
+import { UnknownJobsPanel } from '@/components/UnknownJobsPanel';
 import { SORT_PRESETS, sortJobs, type SortPreset } from '@/lib/sort';
 import { cn } from '@/lib/utils';
 
@@ -184,6 +186,8 @@ export default function JobsPage() {
           </p>
         </div>
 
+        <UnknownJobsPanel onChanged={load} showIgnored className="mb-6" />
+
         {canWrite && (
         <div className="rounded-2xl bg-white ring-1 ring-slate-200 shadow-soft p-4 mb-6 dark:bg-slate-900 dark:ring-slate-800">
           <div className="text-sm font-semibold text-slate-700 mb-3 dark:text-slate-300">
@@ -205,11 +209,9 @@ export default function JobsPage() {
               onChange={(e) => setNewType(e.target.value)}
               className="text-sm rounded-lg ring-1 ring-slate-200 focus:ring-2 focus:ring-osk-500 focus:outline-none px-3 py-2 bg-white text-slate-900 dark:bg-slate-950 dark:ring-slate-700 dark:text-slate-100"
             >
-              <option>VMware Backup</option>
-              <option>Windows Agent Backup</option>
-              <option>Linux Agent Backup</option>
-              <option>NAS Backup</option>
-              <option>Backup Copy</option>
+              {JOB_TYPES.map((t) => (
+                <option key={t}>{t}</option>
+              ))}
             </select>
             <button
               onClick={addJob}

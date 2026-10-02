@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import type { Status } from '@/lib/types';
+import { SYNC_AUTHOR } from '@/lib/types';
+import { isIgnored, recordUnknownResult } from '@/lib/unknown-jobs';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 const VALID: Status[] = ['success', 'warning', 'failed'];
-const SYNC_AUTHOR = 'Veeam-Sync';
 
 interface SyncResult {
   job: string;
@@ -91,9 +92,15 @@ export async function POST(req: NextRequest) {
         stats.invalid_status.push(r.job);
         continue;
       }
+      const note =
+        typeof r.note === 'string' && r.note.trim() ? r.note.trim() : null;
       const jobId = jobsByName.get(r.job.toLowerCase());
       if (!jobId) {
+        // Keep the result so the job can be added later from the UI.
         stats.unknown_jobs.push(r.job);
+        if (!isIgnored(db, r.job)) {
+          recordUnknownResult(db, r.job, date, status, note);
+        }
         continue;
       }
       const existing = getExisting.get(jobId, date) as
@@ -107,7 +114,7 @@ export async function POST(req: NextRequest) {
         jobId,
         date,
         status,
-        typeof r.note === 'string' && r.note.trim() ? r.note.trim() : null,
+        note,
         SYNC_AUTHOR,
       );
       if (existing) stats.updated++;

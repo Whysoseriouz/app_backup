@@ -1,5 +1,9 @@
 export type Status = 'success' | 'warning' | 'failed';
 
+// confirmed_by value reserved for /api/sync. Rows with this author may be
+// overwritten by the next sync run; any other author marks a manual edit.
+export const SYNC_AUTHOR = 'Veeam-Sync';
+
 export interface Job {
   id: number;
   name: string;
@@ -18,6 +22,23 @@ export interface Confirmation {
   note: string | null;
   confirmed_by: string | null;
   confirmed_at: string;
+}
+
+export const JOB_TYPES = [
+  'VMware Backup',
+  'Windows Agent Backup',
+  'Linux Agent Backup',
+  'NAS Backup',
+  'Backup Copy',
+];
+
+/** Job name reported by the Veeam sync that doesn't exist in the portal. */
+export interface UnknownJob {
+  name: string;
+  count: number;
+  first_date: string;
+  last_date: string;
+  last_status: Status;
 }
 
 export interface OverviewPayload {

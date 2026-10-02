@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import type { Job } from '@/lib/types';
+import { adoptUnknownResults } from '@/lib/unknown-jobs';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -37,6 +38,10 @@ export async function PATCH(
     return NextResponse.json({ error: msg }, { status: code });
   }
   const job = db.prepare('SELECT * FROM jobs WHERE id = ?').get(id) as Job;
+  // Renaming a job to a name the sync reported as unknown adopts its results.
+  if (job && body.name !== undefined) {
+    adoptUnknownResults(db, job.id, job.name);
+  }
   return NextResponse.json(job);
 }
 

@@ -24,7 +24,11 @@ export async function GET(req: NextRequest) {
     .all() as Job[];
   const confirmations = db
     .prepare(
-      'SELECT * FROM confirmations WHERE date >= ? AND date <= ? ORDER BY date',
+      // Only active jobs: every view counts confirmations against the active
+      // job list, so leftovers of deactivated jobs would skew open/done counts.
+      `SELECT c.* FROM confirmations c
+       JOIN jobs j ON j.id = c.job_id AND j.active = 1
+       WHERE c.date >= ? AND c.date <= ? ORDER BY c.date`,
     )
     .all(start, end) as Confirmation[];
 

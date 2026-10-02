@@ -59,6 +59,12 @@ Setup-Anleitung: [scripts/README.md](scripts/README.md)
 Manuelle Quittungen werden beim Sync nie überschrieben — sobald du eine
 Zelle selber angefasst hast, gehört sie dir.
 
+Meldet der Sync einen Job, der im Portal nicht (mehr) existiert, erscheint
+im Morning Briefing, in der Matrix und unter `/jobs` ein Hinweis. Beim
+Hinzufügen werden die bis dahin gemeldeten Ergebnisse übernommen;
+„Ignorieren“ blendet den Namen aus und verwirft künftige Meldungen
+(rückgängig machbar unter `/jobs`).
+
 ## Bestehende Installationen umstellen
 
 Installationen, die das Kontrolldatum bisher als Sicherungsdatum verwendet

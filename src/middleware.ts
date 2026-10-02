@@ -1,11 +1,13 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
-import { COOKIE_NAME } from '@/lib/auth';
+import { COOKIE_NAME, getSecret } from '@/lib/auth';
 
 // Paths that bypass auth entirely
 const PUBLIC_PAGES = new Set(['/login']);
 const PUBLIC_API = new Set(['/api/auth/login']);
-const TOKEN_API_PREFIXES = ['/api/sync']; // bearer-token auth, no user cookie
+// Bearer-token auth inside the handler, no user cookie. Exact paths only:
+// sub-routes like /api/sync/status are regular cookie-protected APIs.
+const TOKEN_API = new Set(['/api/sync']);
 
 const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
@@ -18,13 +20,6 @@ const AUTHED_WRITE_EXEMPT = new Set([
   '/api/auth/password',
 ]);
 
-function getSecret(): Uint8Array {
-  const s =
-    process.env.AUTH_SECRET ||
-    'dev-fallback-please-set-AUTH_SECRET-in-production';
-  return new TextEncoder().encode(s);
-}
-
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const method = req.method;
@@ -34,9 +29,7 @@ export async function middleware(req: NextRequest) {
   if (PUBLIC_API.has(pathname)) return NextResponse.next();
 
   // Token-protected API (e.g. /api/sync uses Bearer SYNC_TOKEN inside the handler)
-  if (TOKEN_API_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + '/'))) {
-    return NextResponse.next();
-  }
+  if (TOKEN_API.has(pathname)) return NextResponse.next();
 
   const token = req.cookies.get(COOKIE_NAME)?.value;
 

@@ -16,6 +16,7 @@ import {
   TriangleAlert,
 } from 'lucide-react';
 import { NavBar } from '@/components/NavBar';
+import { UnknownJobsPanel } from '@/components/UnknownJobsPanel';
 import {
   addDays,
   formatLong,
@@ -234,6 +235,8 @@ export default function DashboardPage() {
             </Link>
           </div>
         </header>
+
+        <UnknownJobsPanel onChanged={load} className="mt-4" />
 
         <section className="mt-4 grid grid-cols-2 overflow-hidden rounded-2xl bg-white shadow-soft ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800 sm:grid-cols-5">
           <Metric label="Erfolgreich" value={counts.success} icon={CheckCircle2} tone="emerald" />

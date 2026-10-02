@@ -34,10 +34,17 @@ interface JwtPayloadShape {
   iat?: number;
 }
 
-function getSecret(): Uint8Array {
-  const s =
-    process.env.AUTH_SECRET ||
-    'dev-fallback-please-set-AUTH_SECRET-in-production';
+export function getSecret(): Uint8Array {
+  let s = process.env.AUTH_SECRET;
+  if (!s) {
+    // The fallback is public (it's in the repo), so anyone could forge an
+    // admin session with it. Fail closed in production; the Docker
+    // entrypoint generates and persists a secret if none is configured.
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('AUTH_SECRET is not set');
+    }
+    s = 'dev-fallback-please-set-AUTH_SECRET-in-production';
+  }
   return new TextEncoder().encode(s);
 }
 

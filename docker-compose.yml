@@ -12,7 +12,8 @@ services:
       - TZ=Europe/Berlin
       # Token for /api/sync (Veeam PowerShell integration)
       - SYNC_TOKEN=${SYNC_TOKEN:-}
-      # JWT signing key for user sessions. MUST be set for production!
+      # JWT signing key for user sessions. If empty, the container generates
+      # one on first start and stores it in ./data/.auth_secret.
       # Generate e.g.: [guid]::NewGuid().Guid
       - AUTH_SECRET=${AUTH_SECRET:-}
       # Set to 1 if serving over HTTPS (reverse proxy). Default: 0 for LAN HTTP.

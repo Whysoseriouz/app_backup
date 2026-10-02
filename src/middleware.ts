@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
-import { COOKIE_NAME } from '@/lib/auth';
+import { COOKIE_NAME, getSecret } from '@/lib/auth';
 
 // Paths that bypass auth entirely
 const PUBLIC_PAGES = new Set(['/login']);
@@ -17,13 +17,6 @@ const AUTHED_WRITE_EXEMPT = new Set([
   '/api/auth/logout',
   '/api/auth/password',
 ]);
-
-function getSecret(): Uint8Array {
-  const s =
-    process.env.AUTH_SECRET ||
-    'dev-fallback-please-set-AUTH_SECRET-in-production';
-  return new TextEncoder().encode(s);
-}
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;

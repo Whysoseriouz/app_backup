@@ -60,6 +60,23 @@ function migrate(db: Database.Database) {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+
+    -- Sync results for job names that don't exist in the portal (yet).
+    -- Kept so they can be imported once the job gets created.
+    CREATE TABLE IF NOT EXISTS sync_unknown_results (
+      name TEXT NOT NULL COLLATE NOCASE,
+      date TEXT NOT NULL,
+      status TEXT NOT NULL CHECK(status IN ('success','warning','failed')),
+      note TEXT,
+      received_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY(name, date)
+    );
+
+    -- Unknown job names the user chose to ignore.
+    CREATE TABLE IF NOT EXISTS sync_ignored_jobs (
+      name TEXT PRIMARY KEY COLLATE NOCASE,
+      ignored_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 }
 

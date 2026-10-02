@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import type { Job } from '@/lib/types';
+import { adoptUnknownResults } from '@/lib/unknown-jobs';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -37,7 +38,8 @@ export async function POST(req: NextRequest) {
     const job = db
       .prepare('SELECT * FROM jobs WHERE id = ?')
       .get(info.lastInsertRowid) as Job;
-    return NextResponse.json(job);
+    const imported = adoptUnknownResults(db, job.id, job.name);
+    return NextResponse.json({ ...job, imported });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : 'unknown error';
     const code = msg.includes('UNIQUE') ? 409 : 500;

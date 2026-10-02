@@ -17,6 +17,7 @@ import { CellPopover } from '@/components/CellPopover';
 import { StatusDot } from '@/components/StatusDot';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { SyncIndicator } from '@/components/SyncIndicator';
+import { UnknownJobsPanel } from '@/components/UnknownJobsPanel';
 import { useCan } from '@/components/CurrentUserContext';
 import {
   DOW_SHORT,
@@ -296,6 +297,8 @@ export default function HomePage() {
               </div>
             )}
           </div>
+
+          <UnknownJobsPanel onChanged={fetchData} className="mb-5" />
 
           {/* matrix */}
           <div className="rounded-2xl bg-white ring-1 ring-slate-200 shadow-soft overflow-hidden dark:bg-slate-900 dark:ring-slate-800">

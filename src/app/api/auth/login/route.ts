@@ -52,6 +52,10 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  db.prepare(
+    'UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = ?',
+  ).run(row.id);
+
   const user = { id: row.id, username: row.username, role: row.role };
   const token = await signSession(user);
 

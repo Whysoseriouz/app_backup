@@ -13,6 +13,7 @@ interface UserRow {
   role: Role;
   created_at: string;
   updated_at: string;
+  last_login_at: string | null;
 }
 
 export async function PATCH(
@@ -40,7 +41,7 @@ export async function PATCH(
   const db = getDb();
   const target = db
     .prepare(
-      'SELECT id, username, role, created_at, updated_at FROM users WHERE id = ?',
+      'SELECT id, username, role, created_at, updated_at, last_login_at FROM users WHERE id = ?',
     )
     .get(targetId) as UserRow | undefined;
   if (!target) {
@@ -118,7 +119,7 @@ export async function PATCH(
 
   const updated = db
     .prepare(
-      'SELECT id, username, role, created_at, updated_at FROM users WHERE id = ?',
+      'SELECT id, username, role, created_at, updated_at, last_login_at FROM users WHERE id = ?',
     )
     .get(targetId) as UserRow;
   return NextResponse.json(updated);

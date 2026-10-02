@@ -78,6 +78,14 @@ function migrate(db: Database.Database) {
       ignored_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
   `);
+
+  // Columns added after the initial schema (SQLite has no ADD COLUMN IF NOT EXISTS).
+  const userCols = (
+    db.prepare('PRAGMA table_info(users)').all() as { name: string }[]
+  ).map((c) => c.name);
+  if (!userCols.includes('last_login_at')) {
+    db.exec('ALTER TABLE users ADD COLUMN last_login_at DATETIME');
+  }
 }
 
 const VMWARE_JOBS = [

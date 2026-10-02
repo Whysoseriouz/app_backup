@@ -6,7 +6,7 @@ import * as Tooltip from '@radix-ui/react-tooltip';
 import { Check, X, AlertTriangle, Trash2, Lock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Confirmation, Job, Status } from '@/lib/types';
-import { STATUS_META } from '@/lib/types';
+import { STATUS_META, SYNC_AUTHOR } from '@/lib/types';
 import { formatLong, formatUtcDateTime, fromISO } from '@/lib/date';
 import { useCurrentUser } from './CurrentUserContext';
 
@@ -56,7 +56,9 @@ export function CellPopover({
       setNote(confirmation?.note ?? '');
       // Non-admin users always quittieren in ihrem eigenen Namen; Admins
       // duerfen den bestehenden Wert uebernehmen oder frei eingeben.
-      if (isAdmin) {
+      // Sync-Quittungen nie unter "Veeam-Sync" weiterfuehren, sonst ueberschreibt
+      // der naechste Sync die manuelle Aenderung.
+      if (isAdmin && confirmation?.confirmed_by !== SYNC_AUTHOR) {
         setBy(confirmation?.confirmed_by ?? user?.username ?? '');
       } else {
         setBy(user?.username ?? '');
@@ -126,7 +128,7 @@ export function CellPopover({
                 </div>
               )}
               <div className="mt-1 text-[10px] text-slate-400">
-                {confirmation!.confirmed_by === 'Veeam-Sync'
+                {confirmation!.confirmed_by === SYNC_AUTHOR
                   ? 'importiert'
                   : 'kontrolliert'}{' '}
                 am {formatUtcDateTime(confirmation!.confirmed_at)}

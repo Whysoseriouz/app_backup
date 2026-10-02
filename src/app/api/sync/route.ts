@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import type { Status } from '@/lib/types';
+import { SYNC_AUTHOR } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 const VALID: Status[] = ['success', 'warning', 'failed'];
-const SYNC_AUTHOR = 'Veeam-Sync';
 
 interface SyncResult {
   job: string;

@@ -1,5 +1,9 @@
 export type Status = 'success' | 'warning' | 'failed';
 
+// confirmed_by value reserved for /api/sync. Rows with this author may be
+// overwritten by the next sync run; any other author marks a manual edit.
+export const SYNC_AUTHOR = 'Veeam-Sync';
+
 export interface Job {
   id: number;
   name: string;

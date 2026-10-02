@@ -5,7 +5,9 @@ import { COOKIE_NAME, getSecret } from '@/lib/auth';
 // Paths that bypass auth entirely
 const PUBLIC_PAGES = new Set(['/login']);
 const PUBLIC_API = new Set(['/api/auth/login']);
-const TOKEN_API_PREFIXES = ['/api/sync']; // bearer-token auth, no user cookie
+// Bearer-token auth inside the handler, no user cookie. Exact paths only:
+// sub-routes like /api/sync/status are regular cookie-protected APIs.
+const TOKEN_API = new Set(['/api/sync']);
 
 const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
@@ -27,9 +29,7 @@ export async function middleware(req: NextRequest) {
   if (PUBLIC_API.has(pathname)) return NextResponse.next();
 
   // Token-protected API (e.g. /api/sync uses Bearer SYNC_TOKEN inside the handler)
-  if (TOKEN_API_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + '/'))) {
-    return NextResponse.next();
-  }
+  if (TOKEN_API.has(pathname)) return NextResponse.next();
 
   const token = req.cookies.get(COOKIE_NAME)?.value;
 

@@ -348,7 +348,9 @@ export default function HomePage() {
 
           {/* matrix */}
           <div className="rounded-2xl bg-white ring-1 ring-slate-200 shadow-soft overflow-hidden dark:bg-slate-900 dark:ring-slate-800">
-            <div className="scroll-container overflow-x-auto">
+            {/* Own scroll area (max. viewport below the sticky NavBar) so the
+                day header can stick to its top while scrolling down. */}
+            <div className="scroll-container overflow-auto max-h-[calc(100dvh-6.5rem)]">
               <table
                 ref={tableRef}
                 onMouseOver={onMatrixMouseOver}
@@ -368,7 +370,7 @@ export default function HomePage() {
                   <tr>
                     <th
                       className={cn(
-                        'sticky left-0 top-0 z-20 bg-white border-b border-slate-200 py-3 text-left font-semibold text-slate-500 text-xs uppercase tracking-wide dark:bg-slate-900 dark:border-slate-800 dark:text-slate-400',
+                        'sticky left-0 top-0 z-30 bg-white border-b border-slate-200 py-3 text-left font-semibold text-slate-500 text-xs uppercase tracking-wide dark:bg-slate-900 dark:border-slate-800 dark:text-slate-400',
                         view === 'week'
                           ? 'min-w-[260px] px-4'
                           : 'w-[190px] max-w-[190px] px-3',
@@ -388,18 +390,23 @@ export default function HomePage() {
                           key={iso}
                           data-col={iso}
                           className={cn(
-                            'border-b border-slate-200 text-center font-medium align-top dark:border-slate-800',
-                            view === 'week'
-                              ? 'min-w-[78px] px-1 py-1.5'
-                              : 'min-w-0 px-0 py-1',
-                            isBackupDate
-                              ? 'bg-osk-50/60 dark:bg-osk-500/15'
-                              : isWeekend
-                                ? 'bg-slate-50/50 dark:bg-slate-800/30'
-                                : '',
+                            // Sticky header needs an opaque background; the
+                            // day tint sits on the inner div on top of it.
+                            'sticky top-0 z-20 p-0 bg-white border-b border-slate-200 text-center font-medium align-top dark:bg-slate-900 dark:border-slate-800',
+                            view === 'week' ? 'min-w-[78px]' : 'min-w-0',
                           )}
                         >
-                          <div className="flex flex-col items-center">
+                          <div
+                            className={cn(
+                              'flex flex-col items-center h-full',
+                              view === 'week' ? 'px-1 py-1.5' : 'px-0 py-1',
+                              isBackupDate
+                                ? 'bg-osk-50/60 dark:bg-osk-500/15'
+                                : isWeekend
+                                  ? 'bg-slate-50/50 dark:bg-slate-800/30'
+                                  : '',
+                            )}
+                          >
                             <div
                               className={cn(
                                 view === 'week'

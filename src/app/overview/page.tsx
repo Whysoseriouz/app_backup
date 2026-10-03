@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import {
   ChevronLeft,
@@ -167,6 +167,52 @@ export default function HomePage() {
     ? confirmedPerDay.get(resetDialog.date) || 0
     : 0;
 
+  // Crosshair: toggles hl-row / hl-col classes directly on the DOM so that
+  // hovering doesn't re-render the whole matrix (month view ≈ 1200 cells).
+  const tableRef = useRef<HTMLTableElement>(null);
+  const crosshair = useRef<{ row: string | null; col: string | null }>({
+    row: null,
+    col: null,
+  });
+
+  const setCrosshair = useCallback((row: string | null, col: string | null) => {
+    const table = tableRef.current;
+    if (!table) return;
+    const cur = crosshair.current;
+    if (cur.row !== row) {
+      if (cur.row)
+        table.querySelector(`tr[data-row="${cur.row}"]`)?.classList.remove('hl-row');
+      if (row)
+        table.querySelector(`tr[data-row="${row}"]`)?.classList.add('hl-row');
+    }
+    if (cur.col !== col) {
+      if (cur.col)
+        table
+          .querySelectorAll(`[data-col="${cur.col}"]`)
+          .forEach((el) => el.classList.remove('hl-col'));
+      if (col)
+        table
+          .querySelectorAll(`[data-col="${col}"]`)
+          .forEach((el) => el.classList.add('hl-col'));
+    }
+    crosshair.current = { row, col };
+  }, []);
+
+  // Rows/columns change with view, range and data: drop stale highlights.
+  useEffect(() => {
+    tableRef.current
+      ?.querySelectorAll('.hl-row, .hl-col')
+      .forEach((el) => el.classList.remove('hl-row', 'hl-col'));
+    crosshair.current = { row: null, col: null };
+  }, [view, range, data]);
+
+  function onMatrixMouseOver(e: React.MouseEvent<HTMLTableElement>) {
+    const cell = (e.target as HTMLElement).closest<HTMLElement>('td, th');
+    if (!cell) return;
+    const row = cell.closest<HTMLElement>('tr')?.dataset.row ?? null;
+    setCrosshair(row, cell.dataset.col ?? null);
+  }
+
   // Hydration-safe gate: server and pre-mount client render the same
   // skeleton (no Date-derived markup) until anchor is set in the mount
   // effect. Avoids React #418 which used to client-rerender <html> and
@@ -304,8 +350,11 @@ export default function HomePage() {
           <div className="rounded-2xl bg-white ring-1 ring-slate-200 shadow-soft overflow-hidden dark:bg-slate-900 dark:ring-slate-800">
             <div className="scroll-container overflow-x-auto">
               <table
+                ref={tableRef}
+                onMouseOver={onMatrixMouseOver}
+                onMouseLeave={() => setCrosshair(null, null)}
                 className={cn(
-                  'w-full text-sm border-separate border-spacing-0',
+                  'matrix w-full text-sm border-separate border-spacing-0',
                   view === 'month' && 'table-fixed',
                 )}
               >
@@ -337,6 +386,7 @@ export default function HomePage() {
                       return (
                         <th
                           key={iso}
+                          data-col={iso}
                           className={cn(
                             'border-b border-slate-200 text-center font-medium align-top dark:border-slate-800',
                             view === 'week'
@@ -405,10 +455,10 @@ export default function HomePage() {
                 </thead>
                 <tbody>
                   {data.jobs.map((job) => (
-                    <tr key={job.id} className="group">
+                    <tr key={job.id} data-row={job.id}>
                       <td
                         className={cn(
-                          'sticky left-0 z-10 bg-white border-b border-slate-100 group-hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:group-hover:bg-slate-800/60',
+                          'sticky left-0 z-10 bg-white border-b border-slate-100 dark:bg-slate-900 dark:border-slate-800',
                           view === 'week'
                             ? 'min-w-[260px] px-4 py-2'
                             : 'w-[190px] max-w-[190px] px-3 py-1',
@@ -437,13 +487,14 @@ export default function HomePage() {
                         return (
                           <td
                             key={iso}
+                            data-col={iso}
                             className={cn(
                               'border-b border-slate-100 text-center p-0 dark:border-slate-800',
                               isBackupDate
-                                ? 'bg-osk-50/40 group-hover:bg-osk-100/60 dark:bg-osk-500/10 dark:group-hover:bg-osk-500/20'
+                                ? 'bg-osk-50/40 dark:bg-osk-500/10'
                                 : isWeekend
-                                  ? 'bg-slate-50/30 group-hover:bg-slate-100/70 dark:bg-slate-800/20 dark:group-hover:bg-slate-800/50'
-                                  : 'group-hover:bg-slate-50 dark:group-hover:bg-slate-800/60',
+                                  ? 'bg-slate-50/30 dark:bg-slate-800/20'
+                                  : '',
                             )}
                           >
                             <div

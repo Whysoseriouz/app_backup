@@ -3,10 +3,10 @@
 import { useEffect, useRef, useState } from 'react';
 import * as Popover from '@radix-ui/react-popover';
 import * as Tooltip from '@radix-ui/react-tooltip';
-import { Check, X, AlertTriangle, Trash2, Lock } from 'lucide-react';
+import { Check, X, AlertTriangle, Trash2, Lock, CloudDownload } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { Confirmation, Job, Status } from '@/lib/types';
-import { STATUS_META, SYNC_AUTHOR } from '@/lib/types';
+import type { Confirmation, Job, Status, SyncOutcome } from '@/lib/types';
+import { STATUS_META, SYNC_AUTHOR, SYNC_OUTCOME_LABEL } from '@/lib/types';
 import { formatLong, formatUtcDateTime, fromISO } from '@/lib/date';
 import { useCurrentUser } from './CurrentUserContext';
 
@@ -41,6 +41,25 @@ export function CellPopover({
   // immediately pop up while the cursor is still parked on the cell.
   const [tooltipSuppressed, setTooltipSuppressed] = useState(false);
   const okBtn = useRef<HTMLButtonElement>(null);
+  // What the Veeam sync reported for this cell (loaded when opened).
+  const [report, setReport] = useState<SyncReport | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    setReport(null);
+    fetch(`/api/sync/report?job_id=${job.id}&date=${date}`, {
+      cache: 'no-store',
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (!cancelled) setReport(j?.report ?? null);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [open, job.id, date]);
 
   useEffect(() => {
     if (!open) {
@@ -149,6 +168,18 @@ export function CellPopover({
             e.preventDefault();
             okBtn.current?.focus();
           }}
+          onKeyDown={(e) => {
+            // 1/2/3 pick the status, unless the user is typing.
+            const t = e.target as HTMLElement;
+            if (t.tagName === 'TEXTAREA' || t.tagName === 'INPUT') return;
+            const pick = ({ '1': 'success', '2': 'warning', '3': 'failed' } as const)[
+              e.key as '1' | '2' | '3'
+            ];
+            if (pick) {
+              e.preventDefault();
+              setSelected(pick);
+            }
+          }}
         >
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
@@ -170,6 +201,8 @@ export function CellPopover({
               </span>
             )}
           </div>
+
+          {report && <SyncReportBox report={report} current={current} />}
 
           <div className="mt-3 grid grid-cols-3 gap-2">
             <StatusOption
@@ -273,6 +306,62 @@ export function CellPopover({
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>
+  );
+}
+
+interface SyncReport {
+  status: string;
+  note: string | null;
+  outcome: SyncOutcome;
+  received_at: string;
+}
+
+function SyncReportBox({
+  report,
+  current,
+}: {
+  report: SyncReport;
+  current?: Status;
+}) {
+  const meta = STATUS_META[report.status as Status];
+  const differs =
+    report.outcome === 'skipped_manual' && current && report.status !== current;
+  return (
+    <div
+      className={cn(
+        'mt-3 rounded-lg px-2.5 py-2 text-xs ring-1',
+        differs
+          ? 'bg-amber-50 ring-amber-200 text-amber-900 dark:bg-amber-500/10 dark:ring-amber-500/30 dark:text-amber-200'
+          : 'bg-slate-50 ring-slate-200 text-slate-600 dark:bg-slate-800/50 dark:ring-slate-700 dark:text-slate-300',
+      )}
+    >
+      <div className="flex items-center gap-1.5 font-medium">
+        <CloudDownload className="h-3.5 w-3.5 shrink-0" />
+        Veeam meldete
+        {meta ? (
+          <span
+            className={cn(
+              'px-1.5 py-px rounded-full ring-1 font-semibold',
+              meta.badge,
+            )}
+          >
+            {meta.label}
+          </span>
+        ) : (
+          <span className="font-semibold">{report.status}</span>
+        )}
+        <span className="ml-auto font-normal opacity-70 whitespace-nowrap">
+          {formatUtcDateTime(report.received_at)}
+        </span>
+      </div>
+      {report.note && (
+        <div className="mt-1 leading-snug whitespace-pre-wrap">{report.note}</div>
+      )}
+      <div className="mt-1 opacity-70">
+        {SYNC_OUTCOME_LABEL[report.outcome]}
+        {differs && ' – weicht von der Quittung ab'}
+      </div>
+    </div>
   );
 }
 

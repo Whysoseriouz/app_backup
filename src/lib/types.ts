@@ -41,9 +41,54 @@ export interface UnknownJob {
   last_status: Status;
 }
 
+export type SyncOutcome =
+  | 'inserted'
+  | 'updated'
+  | 'skipped_manual'
+  | 'unknown'
+  | 'invalid';
+
+export const SYNC_OUTCOME_LABEL: Record<SyncOutcome, string> = {
+  inserted: 'Eingetragen',
+  updated: 'Aktualisiert',
+  skipped_manual: 'Übersprungen (manuell quittiert)',
+  unknown: 'Unbekannter Job',
+  invalid: 'Ungültiger Status',
+};
+
+export interface SyncRun {
+  id: number;
+  received_at: string;
+  date: string;
+  received: number;
+  inserted: number;
+  updated: number;
+  skipped_manual: number;
+  unknown: number;
+  invalid: number;
+}
+
+export interface SyncRunItem {
+  job_name: string;
+  job_id: number | null;
+  status: string;
+  note: string | null;
+  outcome: SyncOutcome;
+}
+
+/** Veeam reported something else than the (manual) confirmation says. */
+export interface SyncConflict {
+  job_id: number;
+  date: string;
+  status: Status;
+  note: string | null;
+  received_at: string;
+}
+
 export interface OverviewPayload {
   jobs: Job[];
   confirmations: Confirmation[];
+  conflicts?: SyncConflict[];
 }
 
 export const STATUS_META: Record<

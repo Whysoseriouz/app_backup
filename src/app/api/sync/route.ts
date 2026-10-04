@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
-import type { Status } from '@/lib/types';
+import type { Status, SyncOutcome } from '@/lib/types';
 import { SYNC_AUTHOR } from '@/lib/types';
 import { isIgnored, recordUnknownResult } from '@/lib/unknown-jobs';
+import { finishRun, logItem, startRun } from '@/lib/sync-log';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -83,21 +84,26 @@ export async function POST(req: NextRequest) {
   };
 
   const tx = db.transaction(() => {
+    const runId = startRun(db, date);
     for (const r of results) {
       if (!r || typeof r.job !== 'string' || typeof r.status !== 'string') {
         continue;
       }
       const status = r.status.toLowerCase() as Status;
-      if (!VALID.includes(status)) {
-        stats.invalid_status.push(r.job);
-        continue;
-      }
       const note =
         typeof r.note === 'string' && r.note.trim() ? r.note.trim() : null;
+      const log = (job_id: number | null, outcome: SyncOutcome) =>
+        logItem(db, runId, { job_name: r.job, job_id, status, note, outcome });
+      if (!VALID.includes(status)) {
+        stats.invalid_status.push(r.job);
+        log(jobsByName.get(r.job.toLowerCase()) ?? null, 'invalid');
+        continue;
+      }
       const jobId = jobsByName.get(r.job.toLowerCase());
       if (!jobId) {
         // Keep the result so the job can be added later from the UI.
         stats.unknown_jobs.push(r.job);
+        log(null, 'unknown');
         if (!isIgnored(db, r.job)) {
           recordUnknownResult(db, r.job, date, status, note);
         }
@@ -108,6 +114,7 @@ export async function POST(req: NextRequest) {
         | undefined;
       if (existing && existing.confirmed_by !== SYNC_AUTHOR) {
         stats.skipped_manual++;
+        log(jobId, 'skipped_manual');
         continue;
       }
       upsert.run(
@@ -119,7 +126,16 @@ export async function POST(req: NextRequest) {
       );
       if (existing) stats.updated++;
       else stats.inserted++;
+      log(jobId, existing ? 'updated' : 'inserted');
     }
+    finishRun(db, runId, {
+      received: stats.received,
+      inserted: stats.inserted,
+      updated: stats.updated,
+      skipped_manual: stats.skipped_manual,
+      unknown: stats.unknown_jobs.length,
+      invalid: stats.invalid_status.length,
+    });
   });
   tx();
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
+import { listConflicts } from '@/lib/sync-log';
 import type { Job, Confirmation } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -32,5 +33,7 @@ export async function GET(req: NextRequest) {
     )
     .all(start, end) as Confirmation[];
 
-  return NextResponse.json({ jobs, confirmations });
+  const conflicts = listConflicts(db, start, end);
+
+  return NextResponse.json({ jobs, confirmations, conflicts });
 }

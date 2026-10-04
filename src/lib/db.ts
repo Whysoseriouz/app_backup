@@ -77,6 +77,33 @@ function migrate(db: Database.Database) {
       name TEXT PRIMARY KEY COLLATE NOCASE,
       ignored_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+
+    -- Protocol of every /api/sync call and what happened to each result.
+    CREATE TABLE IF NOT EXISTS sync_runs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      received_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      date TEXT NOT NULL,
+      received INTEGER NOT NULL DEFAULT 0,
+      inserted INTEGER NOT NULL DEFAULT 0,
+      updated INTEGER NOT NULL DEFAULT 0,
+      skipped_manual INTEGER NOT NULL DEFAULT 0,
+      unknown INTEGER NOT NULL DEFAULT 0,
+      invalid INTEGER NOT NULL DEFAULT 0
+    );
+    -- job_id deliberately without FK: the log outlives deleted jobs.
+    CREATE TABLE IF NOT EXISTS sync_run_items (
+      run_id INTEGER NOT NULL REFERENCES sync_runs(id) ON DELETE CASCADE,
+      job_name TEXT NOT NULL,
+      job_id INTEGER,
+      status TEXT NOT NULL,
+      note TEXT,
+      outcome TEXT NOT NULL CHECK(outcome IN
+        ('inserted','updated','skipped_manual','unknown','invalid'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_sync_run_items_run
+      ON sync_run_items(run_id);
+    CREATE INDEX IF NOT EXISTS idx_sync_run_items_job
+      ON sync_run_items(job_id, run_id);
   `);
 
   // Columns added after the initial schema (SQLite has no ADD COLUMN IF NOT EXISTS).

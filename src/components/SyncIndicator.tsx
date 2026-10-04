@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Cloud, CloudOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -26,7 +28,12 @@ function formatAge(d: Date): string {
   return `vor ${days} Tg.`;
 }
 
+/**
+ * Sync status in the top bar (right side): freshness of the last Veeam
+ * import, links to the sync protocol.
+ */
 export function SyncIndicator() {
+  const pathname = usePathname();
   const [status, setStatus] = useState<SyncStatus | null>(null);
 
   useEffect(() => {
@@ -49,49 +56,37 @@ export function SyncIndicator() {
     };
   }, []);
 
-  if (!status || !status.enabled) return null;
-
-  if (!status.last_at) {
-    return (
-      <div
-        className="inline-flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500"
-        title="Sync aktiv, aber noch keine Daten empfangen"
-      >
-        <CloudOff className="h-3.5 w-3.5" />
-        <span>Sync bereit</span>
-      </div>
-    );
-  }
-
-  const last = parseUtc(status.last_at);
-  const ageHours = (Date.now() - last.getTime()) / 3_600_000;
-  const stale = ageHours > 30;
-  const time = last.toLocaleString('de-DE', {
-    hour: '2-digit',
-    minute: '2-digit',
-    day: '2-digit',
-    month: '2-digit',
-  });
+  const last = status?.last_at ? parseUtc(status.last_at) : null;
+  const stale = last ? (Date.now() - last.getTime()) / 3_600_000 > 30 : false;
+  const label = !status?.enabled
+    ? 'Sync aus'
+    : !last
+      ? 'Sync bereit'
+      : `Sync ${formatAge(last)}`;
+  const title = !status?.enabled
+    ? 'Veeam-Sync ist nicht konfiguriert (SYNC_TOKEN fehlt) – Sync-Protokoll öffnen'
+    : last
+      ? `Letzter Veeam-Sync: ${last.toLocaleString('de-DE')}${stale ? ' – veraltet' : ''} · Klick öffnet das Sync-Protokoll`
+      : 'Noch kein Veeam-Sync empfangen – Sync-Protokoll öffnen';
+  const Icon = !status?.enabled || !last || stale ? CloudOff : Cloud;
 
   return (
-    <div
+    <Link
+      href="/sync"
+      title={title}
+      aria-label={title}
       className={cn(
-        'inline-flex items-center gap-1.5 text-xs whitespace-nowrap',
-        stale
-          ? 'text-amber-600 dark:text-amber-400'
-          : 'text-slate-500 dark:text-slate-400',
+        'inline-flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium ring-1 transition whitespace-nowrap',
+        pathname === '/sync'
+          ? 'bg-osk-50 text-osk-700 ring-osk-600/20 dark:bg-osk-500/15 dark:text-osk-300 dark:ring-osk-400/30'
+          : stale
+            ? 'text-amber-700 ring-amber-300 hover:bg-amber-50 dark:text-amber-300 dark:ring-amber-500/40 dark:hover:bg-amber-500/10'
+            : 'text-slate-600 ring-slate-200 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:ring-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-100',
       )}
-      title={`Letzter Veeam-Sync: ${time} · ${status.total} Einträge gesamt`}
     >
-      {stale ? (
-        <CloudOff className="h-3.5 w-3.5" />
-      ) : (
-        <Cloud className="h-3.5 w-3.5" />
-      )}
-      <span>
-        Sync {formatAge(last)}
-        {stale && ' — veraltet'}
-      </span>
-    </div>
+      <Icon className="h-4 w-4" />
+      <span className="hidden min-[1180px]:inline">{label}</span>
+      {stale && <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />}
+    </Link>
   );
 }

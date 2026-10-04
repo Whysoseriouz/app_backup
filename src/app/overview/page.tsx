@@ -11,13 +11,15 @@ import {
   Loader2,
   RotateCcw,
   Check,
+  Search,
+  X as XIcon,
 } from 'lucide-react';
 import { NavBar } from '@/components/NavBar';
 import { CellPopover } from '@/components/CellPopover';
 import { StatusDot } from '@/components/StatusDot';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
-import { SyncIndicator } from '@/components/SyncIndicator';
 import { UnknownJobsPanel } from '@/components/UnknownJobsPanel';
+import { JobHistoryDialog } from '@/components/JobHistoryDialog';
 import { useCan } from '@/components/CurrentUserContext';
 import {
   DOW_SHORT,
@@ -34,13 +36,22 @@ import {
 } from '@/lib/date';
 import type {
   Confirmation,
+  Job,
   OverviewPayload,
   Status,
+  SyncConflict,
 } from '@/lib/types';
 import { STATUS_META } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 type View = 'week' | 'month';
+type RowFilter = 'all' | 'problems' | 'open';
+
+const ROW_FILTERS: { id: RowFilter; label: string }[] = [
+  { id: 'all', label: 'Alle' },
+  { id: 'problems', label: 'Probleme' },
+  { id: 'open', label: 'Offen' },
+];
 
 export default function HomePage() {
   const canWrite = useCan('write');
@@ -57,6 +68,14 @@ export default function HomePage() {
   });
   const [loading, setLoading] = useState(true);
   const [resetDialog, setResetDialog] = useState<{ date: string } | null>(null);
+  const [rowFilter, setRowFilter] = useState<RowFilter>('all');
+  const [query, setQuery] = useState('');
+  const [historyJob, setHistoryJob] = useState<Job | null>(null);
+  // Deep links from the briefing: /overview?filter=problems|open
+  useEffect(() => {
+    const f = new URLSearchParams(window.location.search).get('filter');
+    if (f === 'problems' || f === 'open') setRowFilter(f);
+  }, []);
   // Re-render every minute so that the current backup-day highlight moves at
   // midnight even if the tab was left open overnight.
   const [, setTick] = useState(0);
@@ -111,6 +130,44 @@ export default function HomePage() {
     [data.jobs, confByKey, backupDate],
   );
   const confirmedCountBackupDate = data.jobs.length - openCountBackupDate;
+
+  const conflictByKey = useMemo(() => {
+    const map = new Map<string, SyncConflict>();
+    for (const c of data.conflicts ?? []) map.set(`${c.job_id}:${c.date}`, c);
+    return map;
+  }, [data.conflicts]);
+
+  // Row filter: "problems" = any warning/failure or sync conflict in the
+  // visible range, "open" = any unconfirmed day up to the backup date.
+  const rowStats = useMemo(() => {
+    const problems = new Set<number>();
+    const open = new Set<number>();
+    if (!range) return { problems, open };
+    const days = range.days.map(toISO);
+    for (const job of data.jobs) {
+      for (const iso of days) {
+        const key = `${job.id}:${iso}`;
+        const conf = confByKey.get(key);
+        if ((conf && conf.status !== 'success') || conflictByKey.has(key)) {
+          problems.add(job.id);
+        }
+        if (!conf && iso <= backupDate) open.add(job.id);
+      }
+    }
+    return { problems, open };
+  }, [data.jobs, range, confByKey, conflictByKey, backupDate]);
+
+  const visibleJobs = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return data.jobs.filter(
+      (j) =>
+        (rowFilter === 'all' ||
+          (rowFilter === 'problems' ? rowStats.problems : rowStats.open).has(
+            j.id,
+          )) &&
+        (!q || j.name.toLowerCase().includes(q)),
+    );
+  }, [data.jobs, rowFilter, rowStats, query]);
   const bulkButtonLabel =
     confirmedCountBackupDate > 0 ? 'Rest des Sicherungstags OK' : 'Sicherungstag alles OK';
 
@@ -204,13 +261,66 @@ export default function HomePage() {
       ?.querySelectorAll('.hl-row, .hl-col')
       .forEach((el) => el.classList.remove('hl-row', 'hl-col'));
     crosshair.current = { row: null, col: null };
-  }, [view, range, data]);
+  }, [view, range, data, visibleJobs]);
+
+  // Events from portals (popover, tooltip) bubble through React to the table;
+  // only react to things that are really inside the table DOM.
+  function cellOf(target: EventTarget): HTMLElement | null {
+    const el = target as HTMLElement;
+    if (!tableRef.current?.contains(el)) return null;
+    return el.closest<HTMLElement>('td, th');
+  }
 
   function onMatrixMouseOver(e: React.MouseEvent<HTMLTableElement>) {
-    const cell = (e.target as HTMLElement).closest<HTMLElement>('td, th');
+    const cell = cellOf(e.target);
     if (!cell) return;
     const row = cell.closest<HTMLElement>('tr')?.dataset.row ?? null;
     setCrosshair(row, cell.dataset.col ?? null);
+  }
+
+  // Keyboard: the crosshair follows focus, arrow keys move between cells.
+  function onMatrixFocus(e: React.FocusEvent<HTMLTableElement>) {
+    const cell = cellOf(e.target);
+    if (!cell) return;
+    const row = cell.closest<HTMLElement>('tr')?.dataset.row ?? null;
+    setCrosshair(row, cell.dataset.col ?? null);
+  }
+
+  function onMatrixKeyDown(e: React.KeyboardEvent<HTMLTableElement>) {
+    const delta = (
+      {
+        ArrowUp: [-1, 0],
+        ArrowDown: [1, 0],
+        ArrowLeft: [0, -1],
+        ArrowRight: [0, 1],
+      } as Record<string, [number, number]>
+    )[e.key];
+    if (!delta) return;
+    const cell = cellOf(e.target);
+    const tr = cell?.closest<HTMLElement>('tr[data-row]');
+    if (!cell || !tr) return;
+    e.preventDefault();
+    const rows = Array.from(
+      tableRef.current!.querySelectorAll<HTMLElement>('tbody tr[data-row]'),
+    );
+    // Column 0 is the job name, so arrow-left from the first day lands there.
+    const cols = Array.from(tr.querySelectorAll<HTMLElement>('td'));
+    let r = rows.indexOf(tr);
+    let c = cols.indexOf(cell);
+    // Skip cells without anything focusable (e.g. empty read-only cells).
+    for (;;) {
+      r += delta[0];
+      c += delta[1];
+      if (r < 0 || r >= rows.length || c < 0 || c >= cols.length) return;
+      const target = rows[r]
+        .querySelectorAll<HTMLElement>('td')
+        [c]?.querySelector<HTMLElement>('button');
+      if (target) {
+        target.focus();
+        target.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        return;
+      }
+    }
   }
 
   // Hydration-safe gate: server and pre-mount client render the same
@@ -299,7 +409,6 @@ export default function HomePage() {
               <Loader2 className="h-4 w-4 animate-spin text-slate-400 dark:text-slate-500" />
             )}
 
-            <SyncIndicator />
 
             {canWrite && (
               <div className="ml-auto flex items-center gap-2">
@@ -346,6 +455,76 @@ export default function HomePage() {
 
           <UnknownJobsPanel onChanged={fetchData} className="mb-5" />
 
+          {/* row filter + search */}
+          <div className="flex flex-wrap items-center gap-3 mb-3">
+            <div className="inline-flex rounded-xl bg-white ring-1 ring-slate-200 shadow-soft p-0.5 dark:bg-slate-900 dark:ring-slate-800">
+              {ROW_FILTERS.map((f) => {
+                const n =
+                  f.id === 'all'
+                    ? data.jobs.length
+                    : f.id === 'problems'
+                      ? rowStats.problems.size
+                      : rowStats.open.size;
+                return (
+                  <button
+                    key={f.id}
+                    onClick={() => setRowFilter(f.id)}
+                    aria-pressed={rowFilter === f.id}
+                    className={cn(
+                      'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition',
+                      rowFilter === f.id
+                        ? 'bg-osk-50 text-osk-700 dark:bg-osk-500/15 dark:text-osk-300'
+                        : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100',
+                    )}
+                  >
+                    {f.label}
+                    <span
+                      className={cn(
+                        'min-w-5 rounded-full px-1.5 text-xs',
+                        f.id === 'problems' && n > 0
+                          ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300'
+                          : f.id === 'open' && n > 0
+                            ? 'bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300'
+                            : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400',
+                      )}
+                    >
+                      {n}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Escape' && setQuery('')}
+                placeholder="Job suchen…"
+                aria-label="Job suchen"
+                className="w-56 text-sm rounded-xl ring-1 ring-slate-200 shadow-soft focus:ring-2 focus:ring-osk-500 focus:outline-none pl-8 pr-8 py-1.5 bg-white text-slate-900 placeholder:text-slate-400 dark:bg-slate-900 dark:ring-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500"
+              />
+              {query && (
+                <button
+                  onClick={() => setQuery('')}
+                  aria-label="Suche leeren"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                >
+                  <XIcon className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+            {visibleJobs.length !== data.jobs.length && (
+              <span className="text-xs text-slate-500 dark:text-slate-400">
+                {visibleJobs.length} von {data.jobs.length} Jobs
+              </span>
+            )}
+            <span className="ml-auto hidden lg:inline text-xs text-slate-400 dark:text-slate-500">
+              Jobname anklicken = Verlauf · Pfeiltasten wandern durch die Zellen
+              {canWrite ? ' · Enter öffnet, 1/2/3 wählt den Status' : ''}
+            </span>
+          </div>
+
           {/* matrix */}
           <div className="rounded-2xl bg-white ring-1 ring-slate-200 shadow-soft overflow-hidden dark:bg-slate-900 dark:ring-slate-800">
             {/* Own scroll area (max. viewport below the sticky NavBar) so the
@@ -354,6 +533,8 @@ export default function HomePage() {
               <table
                 ref={tableRef}
                 onMouseOver={onMatrixMouseOver}
+                onFocus={onMatrixFocus}
+                onKeyDown={onMatrixKeyDown}
                 onMouseLeave={() => setCrosshair(null, null)}
                 className={cn(
                   'matrix w-full text-sm border-separate border-spacing-0',
@@ -461,7 +642,7 @@ export default function HomePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.jobs.map((job) => (
+                  {visibleJobs.map((job) => (
                     <tr key={job.id} data-row={job.id}>
                       <td
                         className={cn(
@@ -471,14 +652,17 @@ export default function HomePage() {
                             : 'w-[190px] max-w-[190px] px-3 py-1',
                         )}
                       >
-                        <div
+                        <button
+                          type="button"
+                          onClick={() => setHistoryJob(job)}
+                          title={`Verlauf von ${job.name} anzeigen`}
                           className={cn(
-                            'font-medium text-slate-900 truncate dark:text-slate-100',
+                            'block max-w-full text-left font-medium text-slate-900 truncate rounded hover:text-osk-700 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-osk-500 dark:text-slate-100 dark:hover:text-osk-300',
                             view === 'month' && 'text-xs',
                           )}
                         >
                           {job.name}
-                        </div>
+                        </button>
                         {view === 'week' && (
                           <div className="text-xs text-slate-400 truncate dark:text-slate-500">
                             {job.type}
@@ -488,6 +672,7 @@ export default function HomePage() {
                       {range.days.map((d) => {
                         const iso = toISO(d);
                         const conf = confByKey.get(`${job.id}:${iso}`);
+                        const conflict = conflictByKey.get(`${job.id}:${iso}`);
                         const isBackupDate = iso === backupDate;
                         const dow = (d.getDay() + 6) % 7;
                         const isWeekend = dow >= 5;
@@ -506,10 +691,23 @@ export default function HomePage() {
                           >
                             <div
                               className={cn(
-                                'flex items-center justify-center',
+                                'relative flex items-center justify-center',
                                 view === 'week' ? 'h-11' : 'h-7',
                               )}
                             >
+                              {conflict && (
+                                <span
+                                  aria-label={`Veeam meldete ${STATUS_META[conflict.status].label}`}
+                                  title={`Veeam meldete: ${STATUS_META[conflict.status].label}${conflict.note ? ` – ${conflict.note}` : ''} (übersprungen, manuell quittiert)`}
+                                  className={cn(
+                                    'absolute z-[1] rounded-full ring-2 ring-white dark:ring-slate-900',
+                                    STATUS_META[conflict.status].dot,
+                                    view === 'week'
+                                      ? 'top-1 right-[calc(50%-20px)] h-2.5 w-2.5'
+                                      : 'top-0.5 right-0.5 h-1.5 w-1.5',
+                                  )}
+                                />
+                              )}
                               {canWrite ? (
                                 <CellPopover
                                   job={job}
@@ -546,6 +744,25 @@ export default function HomePage() {
                       })}
                     </tr>
                   ))}
+                  {data.jobs.length > 0 && visibleJobs.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan={range.days.length + 1}
+                        className="p-10 text-center text-slate-500 dark:text-slate-400"
+                      >
+                        Keine Jobs für diesen Filter.{' '}
+                        <button
+                          onClick={() => {
+                            setRowFilter('all');
+                            setQuery('');
+                          }}
+                          className="text-osk-600 underline dark:text-osk-300"
+                        >
+                          Alle anzeigen
+                        </button>
+                      </td>
+                    </tr>
+                  )}
                   {data.jobs.length === 0 && !loading && (
                     <tr>
                       <td
@@ -582,6 +799,10 @@ export default function HomePage() {
               <span className="h-2.5 w-2.5 rounded-full border border-dashed border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-900" />
               Offen
             </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white dark:ring-slate-900" />
+              Veeam meldete etwas anderes (Zelle öffnen für Details)
+            </span>
             <span className="ml-auto text-slate-400 dark:text-slate-500">
               {view === 'week'
                 ? '✓ im Spalten-Kopf = alle offenen als Erfolg · ↺ = alle Quittungen des Tages löschen'
@@ -589,6 +810,11 @@ export default function HomePage() {
             </span>
           </div>
         </main>
+
+        <JobHistoryDialog
+          job={historyJob}
+          onOpenChange={(v) => !v && setHistoryJob(null)}
+        />
 
         <ConfirmDialog
           open={resetDialog !== null}

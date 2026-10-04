@@ -7,6 +7,9 @@ import { Sunrise, Table2, Server, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from './ThemeToggle';
 import { UserMenu } from './UserMenu';
+import { SyncIndicator } from './SyncIndicator';
+
+const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION ?? 'dev';
 
 const items = [
   { href: '/', label: 'Dashboard', icon: Sunrise },
@@ -26,7 +29,11 @@ export function NavBar({
   return (
     <header className="sticky top-0 z-30 bg-white/90 backdrop-blur border-b-[3px] border-osk-600 dark:bg-slate-950/90 no-print">
       <div className="mx-auto max-w-[1800px] px-4 sm:px-6 py-3 flex items-center gap-2 min-[1050px]:gap-4">
-        <Link href="/" className="flex items-center gap-3">
+        <Link
+          href="/"
+          title={`Backup Check v${APP_VERSION}`}
+          className="flex items-center gap-3"
+        >
           <Image
             src="/favicon.png"
             alt="OrgaSoft Kommunal"
@@ -36,8 +43,11 @@ export function NavBar({
             className="h-10 w-10 drop-shadow-sm"
           />
           <div className="hidden min-[1180px]:block leading-tight">
-            <div className="font-bold text-[15px] tracking-tight text-slate-900 dark:text-slate-100">
+            <div className="flex items-baseline gap-1.5 font-bold text-[15px] tracking-tight text-slate-900 dark:text-slate-100">
               Backup Check
+              <span className="text-[10px] font-medium tracking-normal text-slate-400 dark:text-slate-500">
+                v{APP_VERSION}
+              </span>
             </div>
             <div className="text-[11px] font-medium tracking-wide text-osk-600 dark:text-osk-300 uppercase">
               OrgaSoft Kommunal
@@ -82,6 +92,7 @@ export function NavBar({
               {badgeDate ? `${badgeDate} vollständig` : 'Alles bestätigt'}
             </div>
           )}
+          <SyncIndicator />
           <ThemeToggle />
           <UserMenu />
         </div>

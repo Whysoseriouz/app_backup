@@ -41,6 +41,7 @@ import {
 import { NavBar } from '@/components/NavBar';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useCan } from '@/components/CurrentUserContext';
+import { usePageBusy } from '@/lib/navigation';
 import type { Job } from '@/lib/types';
 import { JOB_TYPES } from '@/lib/types';
 import { UnknownJobsPanel } from '@/components/UnknownJobsPanel';
@@ -51,6 +52,7 @@ export default function JobsPage() {
   const canWrite = useCan('write');
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
+  usePageBusy(loading);
   const [editing, setEditing] = useState<number | null>(null);
   const [draft, setDraft] = useState('');
   const [newName, setNewName] = useState('');

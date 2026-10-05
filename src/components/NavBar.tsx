@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Sunrise, Table2, Server, FileText, Loader2 } from 'lucide-react';
 import { useDelayedBusy } from '@/lib/api';
+import { usePendingPath } from '@/lib/navigation';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from './ThemeToggle';
 import { UserMenu } from './UserMenu';
@@ -26,7 +27,10 @@ export function NavBar({
   badge?: number;
   badgeDate?: string;
 }) {
-  const pathname = usePathname();
+  // Highlight the clicked target right away, before the new page renders.
+  const routePath = usePathname();
+  const pendingPath = usePendingPath();
+  const pathname = pendingPath ?? routePath;
   const busy = useDelayedBusy(300);
   return (
     <header className="sticky top-0 z-30 bg-white/90 backdrop-blur border-b-[3px] border-osk-600 dark:bg-slate-950/90 no-print">

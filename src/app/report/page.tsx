@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import useSWR from 'swr';
+import { usePageBusy } from '@/lib/navigation';
 import Image from 'next/image';
 import { getISOWeek } from 'date-fns';
 import { ChevronLeft, ChevronRight, Printer } from 'lucide-react';
@@ -55,6 +56,7 @@ export default function ReportPage() {
     () => swrData ?? { jobs: [], confirmations: [] },
     [swrData],
   );
+  usePageBusy(!range || !swrData);
 
   const confByKey = useMemo(() => {
     const map = new Map<string, Confirmation>();

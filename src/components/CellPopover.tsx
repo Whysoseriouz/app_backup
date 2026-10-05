@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import useSWR from 'swr';
 import * as Popover from '@radix-ui/react-popover';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import { Check, X, AlertTriangle, Trash2, Lock, CloudDownload } from 'lucide-react';
@@ -41,25 +42,11 @@ export function CellPopover({
   // immediately pop up while the cursor is still parked on the cell.
   const [tooltipSuppressed, setTooltipSuppressed] = useState(false);
   const okBtn = useRef<HTMLButtonElement>(null);
-  // What the Veeam sync reported for this cell (loaded when opened).
-  const [report, setReport] = useState<SyncReport | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    let cancelled = false;
-    setReport(null);
-    fetch(`/api/sync/report?job_id=${job.id}&date=${date}`, {
-      cache: 'no-store',
-    })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => {
-        if (!cancelled) setReport(j?.report ?? null);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [open, job.id, date]);
+  // What the Veeam sync reported for this cell (loaded when opened, cached).
+  const { data: reportData } = useSWR<{ report: SyncReport | null }>(
+    open ? `/api/sync/report?job_id=${job.id}&date=${date}` : null,
+  );
+  const report = reportData?.report ?? null;
 
   useEffect(() => {
     if (!open) {
@@ -69,6 +56,8 @@ export function CellPopover({
     }
   }, [open]);
 
+  // Initialise the form only when the popover opens – background refreshes
+  // of `confirmation` must not overwrite what the user is typing.
   useEffect(() => {
     if (open) {
       setSelected(confirmation?.status ?? 'success');
@@ -83,16 +72,21 @@ export function CellPopover({
         setBy(user?.username ?? '');
       }
     }
-  }, [open, confirmation, isAdmin, user]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
-  async function handleSave() {
-    await onSave(selected, note.trim() || null, by.trim() || null);
+  // Close right away; the caller updates the cell optimistically and saves in
+  // the background (errors surface as a toast there).
+  function handleSave() {
     setOpen(false);
+    void Promise.resolve(
+      onSave(selected, note.trim() || null, by.trim() || null),
+    ).catch(() => {});
   }
 
-  async function handleClear() {
-    await onClear();
+  function handleClear() {
     setOpen(false);
+    void Promise.resolve(onClear()).catch(() => {});
   }
 
   const current = confirmation?.status;

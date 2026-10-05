@@ -13,13 +13,39 @@ interface Ctx {
   user: CurrentUser | null;
   loading: boolean;
   refresh: () => Promise<void>;
+  /** Forget the user locally (logout). */
+  clear: () => void;
 }
 
 const CurrentUserContext = createContext<Ctx>({
   user: null,
   loading: true,
   refresh: async () => {},
+  clear: () => {},
 });
+
+// Per-tab cache of the last known user. Lets role-dependent buttons render
+// right after a reload instead of popping in after /api/auth/me, while the
+// pages stay static. Only affects what is shown – the server checks rights.
+const STORAGE_KEY = 'backup-check:user';
+
+function readCached(): CurrentUser | null {
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as CurrentUser) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCached(user: CurrentUser | null) {
+  try {
+    if (user) sessionStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+    else sessionStorage.removeItem(STORAGE_KEY);
+  } catch {
+    /* storage unavailable */
+  }
+}
 
 export function CurrentUserProvider({
   children,
@@ -32,25 +58,33 @@ export function CurrentUserProvider({
   const refresh = useCallback(async () => {
     try {
       const res = await fetch('/api/auth/me', { cache: 'no-store' });
-      if (res.ok) {
-        const json = await res.json();
-        setUser(json.user ?? null);
-      } else {
-        setUser(null);
-      }
+      const next = res.ok ? ((await res.json()).user ?? null) : null;
+      setUser(next);
+      writeCached(next);
     } catch {
-      setUser(null);
+      /* offline: keep the cached user */
     } finally {
       setLoading(false);
     }
   }, []);
 
+  const clear = useCallback(() => {
+    setUser(null);
+    writeCached(null);
+  }, []);
+
   useEffect(() => {
+    const cached = readCached();
+    if (cached) {
+      setUser(cached);
+      setLoading(false);
+    }
+    // Always confirm with the server in the background.
     refresh();
   }, [refresh]);
 
   return (
-    <CurrentUserContext.Provider value={{ user, loading, refresh }}>
+    <CurrentUserContext.Provider value={{ user, loading, refresh, clear }}>
       {children}
     </CurrentUserContext.Provider>
   );

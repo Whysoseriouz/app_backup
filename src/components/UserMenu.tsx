@@ -14,12 +14,13 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useCurrentUser } from './CurrentUserContext';
+import { mutate as clearSwrCache } from 'swr';
 import { ROLE_BADGE, ROLE_LABEL } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 
 export function UserMenu() {
   const router = useRouter();
-  const { user, loading } = useCurrentUser();
+  const { user, loading, clear } = useCurrentUser();
   const [passwordOpen, setPasswordOpen] = useState(false);
 
   if (loading) {
@@ -29,6 +30,9 @@ export function UserMenu() {
 
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' });
+    // Drop the cached user and all cached data of this session.
+    clear();
+    void clearSwrCache(() => true, undefined, { revalidate: false });
     router.push('/login');
     router.refresh();
   }

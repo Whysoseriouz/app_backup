@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
+import useSWR from 'swr';
 import * as Dialog from '@radix-ui/react-dialog';
 import { History, Loader2, X } from 'lucide-react';
 import {
@@ -33,26 +34,12 @@ export function JobHistoryDialog({
   job: Job | null;
   onOpenChange: (open: boolean) => void;
 }) {
-  const [items, setItems] = useState<Confirmation[] | null>(null);
-  const [conflicts, setConflicts] = useState<SyncConflict[]>([]);
-
-  useEffect(() => {
-    if (!job) return;
-    let cancelled = false;
-    setItems(null);
-    setConflicts([]);
-    fetch(`/api/jobs/${job.id}/history?days=${DAYS}`, { cache: 'no-store' })
-      .then((r) => (r.ok ? r.json() : { confirmations: [] }))
-      .then((j) => {
-        if (cancelled) return;
-        setItems(j.confirmations);
-        setConflicts(j.conflicts ?? []);
-      })
-      .catch(() => !cancelled && setItems([]));
-    return () => {
-      cancelled = true;
-    };
-  }, [job]);
+  const { data: history, error } = useSWR<{
+    confirmations: Confirmation[];
+    conflicts?: SyncConflict[];
+  }>(job ? `/api/jobs/${job.id}/history?days=${DAYS}` : null);
+  const items = history?.confirmations ?? (error ? [] : null);
+  const conflicts = useMemo(() => history?.conflicts ?? [], [history]);
 
   const view = useMemo(() => {
     if (!items) return null;

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import useSWR from 'swr';
 import { Cloud, CloudOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -34,27 +34,10 @@ function formatAge(d: Date): string {
  */
 export function SyncIndicator() {
   const pathname = usePathname();
-  const [status, setStatus] = useState<SyncStatus | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      try {
-        const res = await fetch('/api/sync/status', { cache: 'no-store' });
-        if (!res.ok) return;
-        const json = (await res.json()) as SyncStatus;
-        if (!cancelled) setStatus(json);
-      } catch {
-        /* network hiccup, try again later */
-      }
-    };
-    load();
-    const id = setInterval(load, 60_000);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
-  }, []);
+  // Shared cache key with the briefing's sync card.
+  const { data: status } = useSWR<SyncStatus>('/api/sync/status', {
+    refreshInterval: 60_000,
+  });
 
   const last = status?.last_at ? parseUtc(status.last_at) : null;
   const stale = last ? (Date.now() - last.getTime()) / 3_600_000 > 30 : false;

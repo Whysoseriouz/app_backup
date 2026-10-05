@@ -1,6 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
+import useSWR from 'swr';
+import { errorMessage, fetchJson } from '@/lib/api';
 import { AlertTriangle, EyeOff, Eye, Plus, Loader2 } from 'lucide-react';
 import { useCan } from './CurrentUserContext';
 import { formatLong, fromISO } from '@/lib/date';
@@ -28,55 +30,48 @@ export function UnknownJobsPanel({
   className?: string;
 }) {
   const canWrite = useCan('write');
-  const [data, setData] = useState<Payload>({ unknown: [], ignored: [] });
+  const { data: swrData, mutate } = useSWR<Payload>('/api/unknown-jobs', {
+    refreshInterval: 60_000,
+  });
+  const data = swrData ?? { unknown: [], ignored: [] };
   const [types, setTypes] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [ignoredOpen, setIgnoredOpen] = useState(false);
 
-  const load = useCallback(async () => {
-    try {
-      const res = await fetch('/api/unknown-jobs', { cache: 'no-store' });
-      if (res.ok) setData(await res.json());
-    } catch {
-      /* network hiccup, try again later */
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-    const id = setInterval(load, 60_000);
-    return () => clearInterval(id);
-  }, [load]);
 
   async function add(name: string) {
     setBusy(name);
     setError(null);
-    const res = await fetch('/api/jobs', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name, type: types[name] ?? JOB_TYPES[0] }),
-    });
-    setBusy(null);
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      setError(err.error || `${name} konnte nicht angelegt werden`);
+    try {
+      await fetchJson('/api/jobs', {
+        method: 'POST',
+        json: { name, type: types[name] ?? JOB_TYPES[0] },
+      });
+    } catch (e) {
+      setError(`${name} konnte nicht angelegt werden: ${errorMessage(e)}`);
       return;
+    } finally {
+      setBusy(null);
     }
-    await load();
+    await mutate();
     onChanged?.();
   }
 
   async function setIgnored(name: string, ignored: boolean) {
     setBusy(name);
     setError(null);
-    await fetch('/api/unknown-jobs', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name, ignored }),
-    });
-    setBusy(null);
-    await load();
+    try {
+      await fetchJson('/api/unknown-jobs', {
+        method: 'POST',
+        json: { name, ignored },
+      });
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setBusy(null);
+    }
+    await mutate();
   }
 
   const { unknown, ignored } = data;

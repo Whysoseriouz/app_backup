@@ -22,7 +22,7 @@ export function StatusDot({
       <span
         className={cn(
           s.outer,
-          'block rounded-full border border-dashed border-slate-300 bg-white transition group-hover:border-slate-400 dark:border-slate-600 dark:bg-slate-900 dark:group-hover:border-slate-500',
+          'block rounded-full border border-dashed border-slate-300 bg-white transition-colors duration-200 group-hover:border-slate-400 dark:border-slate-600 dark:bg-slate-900 dark:group-hover:border-slate-500',
         )}
       />
     );
@@ -32,7 +32,7 @@ export function StatusDot({
     <span
       className={cn(
         s.outer,
-        'rounded-full flex items-center justify-center text-white shadow-sm transition group-hover:scale-110',
+        'rounded-full flex items-center justify-center text-white shadow-sm transition-transform duration-200 ease-out group-hover:scale-105',
         meta.dot,
       )}
     >

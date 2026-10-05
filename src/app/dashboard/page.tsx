@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import useSWR from 'swr';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import {
   Activity,
@@ -25,7 +26,14 @@ import { UnknownJobsPanel } from '@/components/UnknownJobsPanel';
 import { CellPopover } from '@/components/CellPopover';
 import { StatusDot } from '@/components/StatusDot';
 import { JobHistoryDialog } from '@/components/JobHistoryDialog';
-import { useCan } from '@/components/CurrentUserContext';
+import { useCan, useCurrentUser } from '@/components/CurrentUserContext';
+import {
+  errorMessage,
+  fetchJson,
+  notify,
+  revalidateConfirmations,
+} from '@/lib/api';
+import { withBulkSuccess, withDelete, withUpsert } from '@/lib/optimistic';
 import {
   addDays,
   formatLong,
@@ -104,11 +112,8 @@ const DATE_FORMAT = new Intl.DateTimeFormat('de-DE', {
 
 export default function DashboardPage() {
   const [backupDate, setBackupDate] = useState<string | null>(null);
-  const [data, setData] = useState<OverviewPayload | null>(null);
-  const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const canWrite = useCan('write');
+  const { user } = useCurrentUser();
   // Day picked in the 7-day trend; null = latest backup date.
   const [selected, setSelected] = useState<string | null>(null);
   const [historyJob, setHistoryJob] = useState<Job | null>(null);
@@ -116,36 +121,53 @@ export default function DashboardPage() {
   useEffect(() => setBackupDate(lastBackupDateISO()), []);
   const day = selected ?? backupDate;
 
-  const load = useCallback(async () => {
-    if (!backupDate) return;
-    setRefreshing(true);
-    const end = fromISO(backupDate);
-    const start = addDays(end, -6);
+  // Cached: coming back to the briefing shows the last state at once and
+  // refreshes in the background (also every minute and on tab focus).
+  const overviewKey = backupDate
+    ? `/api/overview?start=${toISO(addDays(fromISO(backupDate), -6))}&end=${backupDate}`
+    : null;
+  const {
+    data,
+    isLoading: loading,
+    isValidating,
+    mutate,
+  } = useSWR<OverviewPayload>(overviewKey, { refreshInterval: 60_000 });
+  const {
+    data: syncStatus,
+    isValidating: syncValidating,
+    mutate: mutateSync,
+  } = useSWR<SyncStatus>('/api/sync/status', { refreshInterval: 60_000 });
+  const refreshing = isValidating || syncValidating;
+  const load = useCallback(() => {
+    void mutate();
+    void mutateSync();
+  }, [mutate, mutateSync]);
 
+  // Same pattern as the matrix: update at once, save in the background,
+  // roll back with a toast on failure.
+  async function optimistic(
+    update: (d: OverviewPayload | undefined) => OverviewPayload | undefined,
+    request: () => Promise<unknown>,
+    failure: string,
+  ) {
     try {
-      const [overviewResponse, syncResponse] = await Promise.all([
-        fetch(`/api/overview?start=${toISO(start)}&end=${backupDate}`, {
-          cache: 'no-store',
-        }),
-        fetch('/api/sync/status', { cache: 'no-store' }),
-      ]);
-      if (overviewResponse.ok) {
-        setData((await overviewResponse.json()) as OverviewPayload);
-      }
-      if (syncResponse.ok) {
-        setSyncStatus((await syncResponse.json()) as SyncStatus);
-      }
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
+      await mutate(
+        async () => {
+          await request();
+          return undefined;
+        },
+        {
+          optimisticData: (cur) => update(cur) ?? { jobs: [], confirmations: [] },
+          rollbackOnError: true,
+          populateCache: false,
+          revalidate: true,
+        },
+      );
+      void revalidateConfirmations();
+    } catch (e) {
+      notify(`${failure}: ${errorMessage(e)}`);
     }
-  }, [backupDate]);
-
-  useEffect(() => {
-    load();
-    const id = setInterval(load, 60_000);
-    return () => clearInterval(id);
-  }, [load]);
+  }
 
   const jobs = useMemo(() => data?.jobs ?? [], [data]);
   const currentConfirmations = useMemo(
@@ -296,38 +318,47 @@ export default function DashboardPage() {
     ? {
         date: day,
         canWrite,
-        onSave: async (jobId, status, note, by) => {
-          await fetch('/api/confirmations', {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({
-              job_id: jobId,
-              date: day,
-              status,
-              note,
-              confirmed_by: by,
-            }),
-          });
-          await load();
-        },
-        onClear: async (jobId) => {
-          await fetch(`/api/confirmations?job_id=${jobId}&date=${day}`, {
-            method: 'DELETE',
-          });
-          await load();
-        },
+        onSave: (jobId, status, note, by) =>
+          optimistic(
+            (d) =>
+              withUpsert(d, {
+                job_id: jobId,
+                date: day,
+                status,
+                note,
+                confirmed_by: by ?? user?.username ?? null,
+              }),
+            () =>
+              fetchJson('/api/confirmations', {
+                method: 'POST',
+                json: { job_id: jobId, date: day, status, note, confirmed_by: by },
+              }),
+            'Speichern fehlgeschlagen',
+          ),
+        onClear: (jobId) =>
+          optimistic(
+            (d) => withDelete(d, jobId, day),
+            () =>
+              fetchJson(`/api/confirmations?job_id=${jobId}&date=${day}`, {
+                method: 'DELETE',
+              }),
+            'Zurücksetzen fehlgeschlagen',
+          ),
         onOpenJob: (jobId) => setHistoryJob(jobsById.get(jobId) ?? null),
       }
     : null;
 
   async function confirmRest() {
     if (!day) return;
-    await fetch('/api/confirmations/bulk', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ date: day, status: 'success', overwrite: false }),
-    });
-    await load();
+    await optimistic(
+      (d) => withBulkSuccess(d, day, user?.username ?? null),
+      () =>
+        fetchJson('/api/confirmations/bulk', {
+          method: 'POST',
+          json: { date: day, status: 'success', overwrite: false },
+        }),
+      'Quittieren fehlgeschlagen',
+    );
   }
 
   if (!backupDate || !day || !actions || loading || !data) {
@@ -467,7 +498,7 @@ export default function DashboardPage() {
               onConfirmRest={confirmRest}
             />
             <SyncPanel
-              status={syncStatus}
+              status={syncStatus ?? null}
               backupDate={backupDate}
               conflicts={dayConflicts.length}
             />

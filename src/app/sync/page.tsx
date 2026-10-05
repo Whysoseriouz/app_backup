@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
+import useSWR from 'swr';
 import { ChevronRight, Loader2, RefreshCw } from 'lucide-react';
 import { NavBar } from '@/components/NavBar';
 import { formatLong, formatUtcDateTime, fromISO } from '@/lib/date';
@@ -17,28 +18,18 @@ import { cn } from '@/lib/utils';
 const NOTABLE: SyncOutcome[] = ['skipped_manual', 'unknown', 'invalid'];
 
 export default function SyncLogPage() {
-  const [runs, setRuns] = useState<SyncRun[] | null>(null);
+  const {
+    data,
+    isValidating: refreshing,
+    mutate,
+  } = useSWR<SyncRun[]>('/api/sync/runs?limit=90', { refreshInterval: 60_000 });
+  const runs = data ?? null;
+  const load = () => void mutate();
   const [openId, setOpenId] = useState<number | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
-
-  const load = useCallback(async () => {
-    setRefreshing(true);
-    try {
-      const res = await fetch('/api/sync/runs?limit=90', { cache: 'no-store' });
-      if (res.ok) {
-        const data = (await res.json()) as SyncRun[];
-        setRuns(data);
-        // Open the newest run on first load so there's something to see.
-        setOpenId((id) => id ?? data[0]?.id ?? null);
-      }
-    } finally {
-      setRefreshing(false);
-    }
-  }, []);
-
+  // Open the newest run on first load so there's something to see.
   useEffect(() => {
-    load();
-  }, [load]);
+    if (data?.length) setOpenId((id) => id ?? data[0].id);
+  }, [data]);
 
   return (
     <div className="min-h-screen">
@@ -154,16 +145,10 @@ function RunItems({
   runId: number;
   hasNotable: boolean;
 }) {
-  const [items, setItems] = useState<SyncRunItem[] | null>(null);
+  const { data, error } = useSWR<SyncRunItem[]>(`/api/sync/runs/${runId}`);
+  const items = data ?? (error ? [] : null);
   const [onlyNotable, setOnlyNotable] = useState(false);
   const [query, setQuery] = useState('');
-
-  useEffect(() => {
-    fetch(`/api/sync/runs/${runId}`, { cache: 'no-store' })
-      .then((r) => (r.ok ? r.json() : []))
-      .then(setItems)
-      .catch(() => setItems([]));
-  }, [runId]);
 
   if (!items) {
     return (

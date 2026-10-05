@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import useSWR from 'swr';
 import Image from 'next/image';
 import { getISOWeek } from 'date-fns';
 import { ChevronLeft, ChevronRight, Printer } from 'lucide-react';
@@ -34,10 +35,6 @@ export default function ReportPage() {
   useEffect(() => {
     setAnchor(new Date());
   }, []);
-  const [data, setData] = useState<OverviewPayload>({
-    jobs: [],
-    confirmations: [],
-  });
 
   const range = useMemo(
     () => {
@@ -47,20 +44,17 @@ export default function ReportPage() {
     [view, anchor],
   );
 
-  const load = useCallback(async () => {
-    if (!range) return;
-    const res = await fetch(
-      `/api/overview?start=${toISO(range.start)}&end=${toISO(range.end)}`,
-      { cache: 'no-store' },
-    );
-    if (res.ok) {
-      setData(await res.json());
-    }
-  }, [range]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
+  // Same cache key as the matrix: a week already opened there shows at once.
+  const { data: swrData } = useSWR<OverviewPayload>(
+    range
+      ? `/api/overview?start=${toISO(range.start)}&end=${toISO(range.end)}`
+      : null,
+    { keepPreviousData: true },
+  );
+  const data = useMemo<OverviewPayload>(
+    () => swrData ?? { jobs: [], confirmations: [] },
+    [swrData],
+  );
 
   const confByKey = useMemo(() => {
     const map = new Map<string, Confirmation>();

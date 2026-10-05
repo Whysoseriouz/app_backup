@@ -3,7 +3,8 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Sunrise, Table2, Server, FileText } from 'lucide-react';
+import { Sunrise, Table2, Server, FileText, Loader2 } from 'lucide-react';
+import { useDelayedBusy } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from './ThemeToggle';
 import { UserMenu } from './UserMenu';
@@ -26,6 +27,7 @@ export function NavBar({
   badgeDate?: string;
 }) {
   const pathname = usePathname();
+  const busy = useDelayedBusy(300);
   return (
     <header className="sticky top-0 z-30 bg-white/90 backdrop-blur border-b-[3px] border-osk-600 dark:bg-slate-950/90 no-print">
       <div className="mx-auto max-w-[1800px] px-4 sm:px-6 py-3 flex items-center gap-2 min-[1050px]:gap-4">
@@ -92,6 +94,15 @@ export function NavBar({
               {badgeDate ? `${badgeDate} vollständig` : 'Alles bestätigt'}
             </div>
           )}
+          {/* Background activity; space is always reserved so nothing shifts. */}
+          <Loader2
+            aria-hidden={!busy}
+            aria-label={busy ? 'Lädt im Hintergrund' : undefined}
+            className={cn(
+              'h-4 w-4 animate-spin text-osk-500 transition-opacity duration-200',
+              busy ? 'opacity-100' : 'opacity-0',
+            )}
+          />
           <SyncIndicator />
           <ThemeToggle />
           <UserMenu />

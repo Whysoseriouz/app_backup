@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import useSWR, { preload } from 'swr';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import {
   ChevronLeft,
@@ -20,7 +21,20 @@ import { StatusDot } from '@/components/StatusDot';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { UnknownJobsPanel } from '@/components/UnknownJobsPanel';
 import { JobHistoryDialog } from '@/components/JobHistoryDialog';
-import { useCan } from '@/components/CurrentUserContext';
+import { useCan, useCurrentUser } from '@/components/CurrentUserContext';
+import {
+  errorMessage,
+  fetchJson,
+  notify,
+  revalidateConfirmations,
+  swrFetcher,
+} from '@/lib/api';
+import {
+  withBulkSuccess,
+  withDayReset,
+  withDelete,
+  withUpsert,
+} from '@/lib/optimistic';
 import {
   DOW_SHORT,
   MONTH_LONG,
@@ -45,6 +59,10 @@ import { STATUS_META } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 type View = 'week' | 'month';
+
+const EMPTY: OverviewPayload = { jobs: [], confirmations: [] };
+const overviewKey = (r: { start: Date; end: Date }) =>
+  `/api/overview?start=${toISO(r.start)}&end=${toISO(r.end)}`;
 type RowFilter = 'all' | 'problems' | 'open';
 
 const ROW_FILTERS: { id: RowFilter; label: string }[] = [
@@ -55,6 +73,7 @@ const ROW_FILTERS: { id: RowFilter; label: string }[] = [
 
 export default function HomePage() {
   const canWrite = useCan('write');
+  const { user } = useCurrentUser();
   const [view, setView] = useState<View>('week');
   // Stable initial anchor avoids Server/Client Date mismatch (Hydration #418).
   // The real "now" is set in the mount-effect below.
@@ -62,11 +81,6 @@ export default function HomePage() {
   useEffect(() => {
     setAnchor(new Date());
   }, []);
-  const [data, setData] = useState<OverviewPayload>({
-    jobs: [],
-    confirmations: [],
-  });
-  const [loading, setLoading] = useState(true);
   const [resetDialog, setResetDialog] = useState<{ date: string } | null>(null);
   const [rowFilter, setRowFilter] = useState<RowFilter>('all');
   const [query, setQuery] = useState('');
@@ -92,22 +106,59 @@ export default function HomePage() {
     [view, anchor],
   );
 
-  const fetchData = useCallback(async () => {
-    if (!range) return;
-    const res = await fetch(
-      `/api/overview?start=${toISO(range.start)}&end=${toISO(range.end)}`,
-      { cache: 'no-store' },
-    );
-    if (res.ok) {
-      const json: OverviewPayload = await res.json();
-      setData(json);
-    }
-    setLoading(false);
-  }, [range]);
+  // Cached per range: switching back to a week shows it instantly while it
+  // refreshes in the background. keepPreviousData avoids an empty table
+  // while a not-yet-cached range loads (the table is dimmed instead).
+  const {
+    data: swrData,
+    isLoading: loading,
+    mutate,
+  } = useSWR<OverviewPayload>(range ? overviewKey(range) : null, {
+    keepPreviousData: true,
+    refreshInterval: 60_000,
+  });
+  const data = swrData ?? EMPTY;
+  const fetchData = useCallback(() => void mutate(), [mutate]);
 
+  // Prefetch the neighbouring weeks/months so paging is instant.
+  const preloaded = useRef(new Set<string>());
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    if (!anchor || !swrData) return;
+    const shift = view === 'week' ? shiftWeek : shiftMonth;
+    const rangeOf = view === 'week' ? weekRange : monthRange;
+    for (const dir of [-1, 1] as const) {
+      const key = overviewKey(rangeOf(shift(anchor, dir)));
+      if (preloaded.current.has(key)) continue;
+      preloaded.current.add(key);
+      preload(key, swrFetcher);
+    }
+  }, [anchor, view, swrData]);
+
+  // Writes: show the result immediately, send the request in the background,
+  // roll back + show a toast if it fails, then refresh from the server.
+  async function optimistic(
+    update: (d: OverviewPayload | undefined) => OverviewPayload | undefined,
+    request: () => Promise<unknown>,
+    failure: string,
+  ) {
+    try {
+      await mutate(
+        async () => {
+          await request();
+          return undefined;
+        },
+        {
+          optimisticData: (cur) => update(cur) ?? EMPTY,
+          rollbackOnError: true,
+          populateCache: false,
+          revalidate: true,
+        },
+      );
+      void revalidateConfirmations();
+    } catch (e) {
+      notify(`${failure}: ${errorMessage(e)}`);
+    }
+  }
 
   const confByKey = useMemo(() => {
     const map = new Map<string, Confirmation>();
@@ -171,39 +222,52 @@ export default function HomePage() {
   const bulkButtonLabel =
     confirmedCountBackupDate > 0 ? 'Rest des Sicherungstags OK' : 'Sicherungstag alles OK';
 
-  async function upsertConfirmation(
+  function upsertConfirmation(
     job_id: number,
     date: string,
     status: Status,
     note: string | null,
     confirmed_by: string | null,
   ) {
-    await fetch('/api/confirmations', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ job_id, date, status, note, confirmed_by }),
-    });
-    await fetchData();
+    return optimistic(
+      (d) =>
+        withUpsert(d, {
+          job_id,
+          date,
+          status,
+          note,
+          confirmed_by: confirmed_by ?? user?.username ?? null,
+        }),
+      () =>
+        fetchJson('/api/confirmations', {
+          method: 'POST',
+          json: { job_id, date, status, note, confirmed_by },
+        }),
+      'Speichern fehlgeschlagen',
+    );
   }
 
-  async function deleteConfirmation(job_id: number, date: string) {
-    await fetch(`/api/confirmations?job_id=${job_id}&date=${date}`, {
-      method: 'DELETE',
-    });
-    await fetchData();
+  function deleteConfirmation(job_id: number, date: string) {
+    return optimistic(
+      (d) => withDelete(d, job_id, date),
+      () =>
+        fetchJson(`/api/confirmations?job_id=${job_id}&date=${date}`, {
+          method: 'DELETE',
+        }),
+      'Zurücksetzen fehlgeschlagen',
+    );
   }
 
-  async function bulkConfirmDay(date: string) {
-    await fetch('/api/confirmations/bulk', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        date,
-        status: 'success',
-        overwrite: false,
-      }),
-    });
-    await fetchData();
+  function bulkConfirmDay(date: string) {
+    return optimistic(
+      (d) => withBulkSuccess(d, date, user?.username ?? null),
+      () =>
+        fetchJson('/api/confirmations/bulk', {
+          method: 'POST',
+          json: { date, status: 'success', overwrite: false },
+        }),
+      'Quittieren fehlgeschlagen',
+    );
   }
 
   function askResetDay(date: string) {
@@ -212,12 +276,15 @@ export default function HomePage() {
     setResetDialog({ date });
   }
 
-  async function performResetDay() {
+  function performResetDay() {
     if (!resetDialog) return;
-    await fetch(`/api/confirmations/bulk?date=${resetDialog.date}`, {
-      method: 'DELETE',
-    });
-    await fetchData();
+    const date = resetDialog.date;
+    void optimistic(
+      (d) => withDayReset(d, date),
+      () =>
+        fetchJson(`/api/confirmations/bulk?date=${date}`, { method: 'DELETE' }),
+      'Zurücksetzen fehlgeschlagen',
+    );
   }
 
   const resetCount = resetDialog
@@ -533,7 +600,13 @@ export default function HomePage() {
           {/* matrix */}
           {/* Card is as tall as its rows but shrinks to the space left (lg+);
               the inner area scrolls and keeps the day header sticky. */}
-          <div className="rounded-2xl bg-white ring-1 ring-slate-200 shadow-soft overflow-hidden dark:bg-slate-900 dark:ring-slate-800 lg:min-h-0 lg:flex lg:flex-col">
+          <div
+            aria-busy={loading}
+            className={cn(
+              'rounded-2xl bg-white ring-1 ring-slate-200 shadow-soft overflow-hidden transition-opacity duration-150 dark:bg-slate-900 dark:ring-slate-800 lg:min-h-0 lg:flex lg:flex-col',
+              loading && swrData && 'opacity-60',
+            )}
+          >
             <div className="scroll-container overflow-auto max-h-[calc(100dvh-6.5rem)] lg:max-h-none lg:min-h-0">
               <table
                 ref={tableRef}
@@ -749,6 +822,27 @@ export default function HomePage() {
                       })}
                     </tr>
                   ))}
+                  {loading && !swrData &&
+                    Array.from({ length: 10 }, (_, i) => (
+                      <tr key={`sk-${i}`} aria-hidden>
+                        <td className="border-b border-slate-100 px-4 py-3 dark:border-slate-800">
+                          <div className="h-3.5 w-40 rounded bg-slate-200 animate-pulse dark:bg-slate-800" />
+                        </td>
+                        {range.days.map((d) => (
+                          <td
+                            key={toISO(d)}
+                            className="border-b border-slate-100 dark:border-slate-800"
+                          >
+                            <div
+                              className={cn(
+                                'mx-auto rounded-full bg-slate-100 animate-pulse dark:bg-slate-800',
+                                view === 'week' ? 'h-7 w-7' : 'h-4 w-4',
+                              )}
+                            />
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
                   {data.jobs.length > 0 && visibleJobs.length === 0 && (
                     <tr>
                       <td

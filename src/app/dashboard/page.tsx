@@ -305,7 +305,7 @@ export default function DashboardPage() {
       const t = e.target as HTMLElement;
       if (
         t.closest(
-          'input, textarea, select, [role=dialog], [data-radix-popper-content-wrapper]',
+          'input, textarea, select, [role=dialog], [data-radix-popper-content-wrapper], [data-floating-window]',
         )
       )
         return;

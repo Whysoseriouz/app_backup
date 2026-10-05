@@ -238,6 +238,7 @@ function CellPopoverInner({
           onClose={close}
           label={`Quittieren: ${job.name}, ${formatLong(fromISO(date))}`}
           initialFocus={okBtn}
+          storageKey="quittieren"
           className="w-[340px] p-4"
           onKeyDown={(e) => {
             // 1/2/3 pick the status, unless the user is typing.
@@ -323,7 +324,7 @@ function CellPopoverInner({
               }
             }}
             rows={2}
-            className="mt-1 w-full text-sm rounded-lg ring-1 ring-slate-200 focus:ring-2 focus:ring-osk-500 focus:outline-none px-2.5 py-1.5 resize-none bg-white text-slate-900 placeholder:text-slate-400 dark:ring-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
+            className="mt-1 w-full min-h-[3.25rem] flex-[1_1_auto] text-sm rounded-lg ring-1 ring-slate-200 focus:ring-2 focus:ring-osk-500 focus:outline-none px-2.5 py-1.5 resize-none bg-white text-slate-900 placeholder:text-slate-400 dark:ring-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
             placeholder="z. B. Veeam-Warnung, nachgeholt um 06:00. Enter speichert, Shift+Enter = neue Zeile."
           />
 
@@ -439,7 +440,9 @@ function SyncReportBox({
         </span>
       </div>
       {report.note && (
-        <div className="mt-1 leading-snug whitespace-pre-wrap">{report.note}</div>
+        <div className="mt-1 max-h-[30vh] overflow-y-auto leading-snug whitespace-pre-wrap">
+          {report.note}
+        </div>
       )}
       <div className="mt-1 opacity-70">
         {SYNC_OUTCOME_LABEL[report.outcome]}

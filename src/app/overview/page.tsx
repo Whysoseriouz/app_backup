@@ -344,14 +344,16 @@ export default function HomePage() {
 
   return (
     <Tooltip.Provider delayDuration={300} skipDelayDuration={100}>
-      <div className="min-h-screen">
+      {/* From lg up the page itself never scrolls: header, toolbar, filters
+          and legend stay put, only the job table scrolls. */}
+      <div className="min-h-screen lg:h-dvh lg:min-h-0 lg:flex lg:flex-col lg:overflow-hidden">
         <NavBar
           badge={openCountBackupDate}
           badgeDate={formatLong(fromISO(backupDate))}
         />
-        <main className="mx-auto max-w-[1800px] px-4 sm:px-6 py-6">
+        <main className="mx-auto w-full max-w-[1800px] px-4 sm:px-6 py-6 lg:flex-1 lg:min-h-0 lg:flex lg:flex-col">
           {/* toolbar */}
-          <div className="flex flex-wrap items-center gap-3 mb-5">
+          <div className="shrink-0 flex flex-wrap items-center gap-3 mb-5">
             <div className="inline-flex rounded-xl bg-white ring-1 ring-slate-200 shadow-soft p-0.5 dark:bg-slate-900 dark:ring-slate-800">
               {(['week', 'month'] as View[]).map((v) => (
                 <button
@@ -453,10 +455,13 @@ export default function HomePage() {
             )}
           </div>
 
-          <UnknownJobsPanel onChanged={fetchData} className="mb-5" />
+          <UnknownJobsPanel
+            onChanged={fetchData}
+            className="mb-5 shrink-0 lg:max-h-48 lg:overflow-y-auto"
+          />
 
           {/* row filter + search */}
-          <div className="flex flex-wrap items-center gap-3 mb-3">
+          <div className="shrink-0 flex flex-wrap items-center gap-3 mb-3">
             <div className="inline-flex rounded-xl bg-white ring-1 ring-slate-200 shadow-soft p-0.5 dark:bg-slate-900 dark:ring-slate-800">
               {ROW_FILTERS.map((f) => {
                 const n =
@@ -526,10 +531,10 @@ export default function HomePage() {
           </div>
 
           {/* matrix */}
-          <div className="rounded-2xl bg-white ring-1 ring-slate-200 shadow-soft overflow-hidden dark:bg-slate-900 dark:ring-slate-800">
-            {/* Own scroll area (max. viewport below the sticky NavBar) so the
-                day header can stick to its top while scrolling down. */}
-            <div className="scroll-container overflow-auto max-h-[calc(100dvh-6.5rem)]">
+          {/* Card is as tall as its rows but shrinks to the space left (lg+);
+              the inner area scrolls and keeps the day header sticky. */}
+          <div className="rounded-2xl bg-white ring-1 ring-slate-200 shadow-soft overflow-hidden dark:bg-slate-900 dark:ring-slate-800 lg:min-h-0 lg:flex lg:flex-col">
+            <div className="scroll-container overflow-auto max-h-[calc(100dvh-6.5rem)] lg:max-h-none lg:min-h-0">
               <table
                 ref={tableRef}
                 onMouseOver={onMatrixMouseOver}
@@ -785,7 +790,7 @@ export default function HomePage() {
           </div>
 
           {/* legend */}
-          <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
+          <div className="shrink-0 mt-4 flex flex-wrap items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
             <span>Legende:</span>
             {(['success', 'warning', 'failed'] as Status[]).map((s) => (
               <span key={s} className="inline-flex items-center gap-1.5">

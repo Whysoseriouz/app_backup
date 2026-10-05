@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from 'react';
 import useSWR from 'swr';
-import * as Popover from '@radix-ui/react-popover';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import { Check, X, AlertTriangle, Trash2, Lock, CloudDownload } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -10,6 +9,7 @@ import type { Confirmation, Job, Status, SyncOutcome } from '@/lib/types';
 import { STATUS_META, SYNC_AUTHOR, SYNC_OUTCOME_LABEL } from '@/lib/types';
 import { formatLong, formatUtcDateTime, fromISO } from '@/lib/date';
 import { useCurrentUser } from './CurrentUserContext';
+import { FloatingWindow } from './FloatingWindow';
 
 interface CellPopoverProps {
   job: Job;
@@ -27,7 +27,7 @@ interface CellPopoverProps {
 
 const triggerClass = (compact: boolean) =>
   cn(
-    'group inline-flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer',
+    'group inline-flex items-center justify-center rounded-full hover:bg-slate-100/60 dark:hover:bg-slate-800/50 transition-colors duration-200 cursor-pointer',
     compact ? 'h-6 w-6' : 'h-9 w-9',
   );
 
@@ -153,6 +153,7 @@ function CellPopoverInner({
   // the background (errors surface as a toast there).
   function handleSave() {
     setOpen(false);
+    triggerRef.current?.focus();
     void Promise.resolve(
       onSave(selected, note.trim() || null, by.trim() || null),
     ).catch(() => {});
@@ -160,7 +161,14 @@ function CellPopoverInner({
 
   function handleClear() {
     setOpen(false);
+    triggerRef.current?.focus();
     void Promise.resolve(onClear()).catch(() => {});
+  }
+
+  // Closing via ×, Esc or "Abbrechen": hand focus back to the cell.
+  function close() {
+    setOpen(false);
+    triggerRef.current?.focus();
   }
 
   const current = confirmation?.status;
@@ -171,20 +179,21 @@ function CellPopoverInner({
     open || tooltipSuppressed || !confirmation ? false : undefined;
 
   return (
-    <Popover.Root open={open} onOpenChange={setOpen}>
+    <>
       <Tooltip.Root open={tooltipOpenProp}>
-        <Popover.Trigger asChild>
-          <Tooltip.Trigger asChild>
-            <button
-              ref={triggerRef}
-              type="button"
-              className={triggerClass(compact)}
-              aria-label="Bestätigung"
-            >
-              {children}
-            </button>
-          </Tooltip.Trigger>
-        </Popover.Trigger>
+        <Tooltip.Trigger asChild>
+          <button
+            ref={triggerRef}
+            type="button"
+            className={triggerClass(compact)}
+            aria-label="Bestätigung"
+            aria-haspopup="dialog"
+            aria-expanded={open}
+            onClick={() => setOpen((o) => !o)}
+          >
+            {children}
+          </button>
+        </Tooltip.Trigger>
         {confirmation && (
           <Tooltip.Portal>
             <Tooltip.Content
@@ -223,24 +232,13 @@ function CellPopoverInner({
           </Tooltip.Portal>
         )}
       </Tooltip.Root>
-      <Popover.Portal>
-        <Popover.Content
-          side="top"
-          sideOffset={8}
-          align="center"
-          collisionPadding={12}
-          className="z-50 w-[340px] rounded-xl bg-white ring-1 ring-slate-200 shadow-pop p-4 animate-fade-in focus:outline-none dark:bg-slate-900 dark:ring-slate-800"
-          onOpenAutoFocus={(e) => {
-            e.preventDefault();
-            okBtn.current?.focus();
-            // When opened via pointerdown on a not-yet-armed cell, the same
-            // click's mousedown moves focus away again – take it back after.
-            setTimeout(() => {
-              if (!okBtn.current?.closest('[data-radix-popper-content-wrapper]')?.contains(document.activeElement)) {
-                okBtn.current?.focus();
-              }
-            }, 0);
-          }}
+      {open && (
+        <FloatingWindow
+          anchorRef={triggerRef}
+          onClose={close}
+          label={`Quittieren: ${job.name}, ${formatLong(fromISO(date))}`}
+          initialFocus={okBtn}
+          className="w-[340px] p-4"
           onKeyDown={(e) => {
             // 1/2/3 pick the status, unless the user is typing.
             const t = e.target as HTMLElement;
@@ -254,7 +252,12 @@ function CellPopoverInner({
             }
           }}
         >
-          <div className="flex items-start justify-between gap-2">
+          {/* Title bar = drag handle */}
+          <div
+            data-drag-handle=""
+            title="Zum Verschieben ziehen"
+            className="-mx-4 -mt-4 mb-1 flex cursor-move select-none items-start justify-between gap-2 rounded-t-xl px-4 pt-3 pb-2 hover:bg-slate-50 dark:hover:bg-slate-800/40"
+          >
             <div className="min-w-0">
               <div className="text-xs text-slate-500 dark:text-slate-400">
                 Sicherungstag · {formatLong(fromISO(date))}
@@ -273,6 +276,15 @@ function CellPopoverInner({
                 {STATUS_META[current].label}
               </span>
             )}
+            <button
+              type="button"
+              onClick={close}
+              aria-label="Schließen"
+              title="Schließen (Esc)"
+              className="-mr-1.5 -mt-0.5 shrink-0 rounded-md p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-700 dark:hover:text-slate-200"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
 
           {report && <SyncReportBox report={report} current={current} />}
@@ -361,7 +373,7 @@ function CellPopoverInner({
             )}
             <button
               type="button"
-              onClick={() => setOpen(false)}
+              onClick={close}
               className="ml-auto px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100 rounded-md dark:text-slate-400 dark:hover:bg-slate-800"
             >
               Abbrechen
@@ -375,10 +387,9 @@ function CellPopoverInner({
               OK
             </button>
           </div>
-          <Popover.Arrow className="fill-white dark:fill-slate-900" />
-        </Popover.Content>
-      </Popover.Portal>
-    </Popover.Root>
+        </FloatingWindow>
+      )}
+    </>
   );
 }
 

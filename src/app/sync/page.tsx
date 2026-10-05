@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import useSWR from 'swr';
+import { usePageBusy } from '@/lib/navigation';
 import { ChevronRight, Loader2, RefreshCw } from 'lucide-react';
 import { NavBar } from '@/components/NavBar';
 import { formatLong, formatUtcDateTime, fromISO } from '@/lib/date';
@@ -24,12 +25,10 @@ export default function SyncLogPage() {
     mutate,
   } = useSWR<SyncRun[]>('/api/sync/runs?limit=90', { refreshInterval: 60_000 });
   const runs = data ?? null;
+  usePageBusy(!data);
   const load = () => void mutate();
+  // All runs start collapsed; a click opens one.
   const [openId, setOpenId] = useState<number | null>(null);
-  // Open the newest run on first load so there's something to see.
-  useEffect(() => {
-    if (data?.length) setOpenId((id) => id ?? data[0].id);
-  }, [data]);
 
   return (
     <div className="min-h-screen">

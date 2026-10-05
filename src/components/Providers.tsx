@@ -4,6 +4,7 @@ import { SWRConfig } from 'swr';
 import { X } from 'lucide-react';
 import { dismissToast, swrFetcher, useToasts } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import { NavigationOverlay } from './NavigationOverlay';
 
 /**
  * Client-side data layer: one SWR cache for all pages, so returning to a page
@@ -23,6 +24,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       }}
     >
       {children}
+      <NavigationOverlay />
       <Toaster />
     </SWRConfig>
   );

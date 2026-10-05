@@ -1,7 +1,15 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  startTransition,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import useSWR, { preload } from 'swr';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import {
@@ -22,6 +30,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { UnknownJobsPanel } from '@/components/UnknownJobsPanel';
 import { JobHistoryDialog } from '@/components/JobHistoryDialog';
 import { useCan, useCurrentUser } from '@/components/CurrentUserContext';
+import { usePageBusy } from '@/lib/navigation';
 import {
   errorMessage,
   fetchJson,
@@ -61,6 +70,27 @@ import { cn } from '@/lib/utils';
 type View = 'week' | 'month';
 
 const EMPTY: OverviewPayload = { jobs: [], confirmations: [] };
+
+// "Switching" flag for the loading overlay. Kept outside React state so that
+// setting it only re-renders the small overlay, not the (month: ~1200 cell)
+// matrix – the overlay paints at once, the new table renders behind it.
+let switching = false;
+const switchListeners = new Set<() => void>();
+function setSwitching(value: boolean) {
+  if (switching === value) return;
+  switching = value;
+  switchListeners.forEach((l) => l());
+}
+function useSwitching(): boolean {
+  return useSyncExternalStore(
+    (l) => {
+      switchListeners.add(l);
+      return () => switchListeners.delete(l);
+    },
+    () => switching,
+    () => false,
+  );
+}
 const overviewKey = (r: { start: Date; end: Date }) =>
   `/api/overview?start=${toISO(r.start)}&end=${toISO(r.end)}`;
 type RowFilter = 'all' | 'problems' | 'open';
@@ -79,7 +109,9 @@ export default function HomePage() {
   // The real "now" is set in the mount-effect below.
   const [anchor, setAnchor] = useState<Date | null>(null);
   useEffect(() => {
-    setAnchor(new Date());
+    // Build the (large) table as an interruptible transition so opening the
+    // page doesn't block the browser in one go.
+    startTransition(() => setAnchor(new Date()));
   }, []);
   const [resetDialog, setResetDialog] = useState<{ date: string } | null>(null);
   const [rowFilter, setRowFilter] = useState<RowFilter>('all');
@@ -106,6 +138,17 @@ export default function HomePage() {
     [view, anchor],
   );
 
+  // View/period changes: overlay first (urgent, cheap), then render the new
+  // matrix as a transition (interruptible) behind it.
+  function switchTo(update: () => void) {
+    setSwitching(true);
+    startTransition(update);
+  }
+  useEffect(() => {
+    setSwitching(false);
+  }, [view, anchor]);
+  useEffect(() => () => setSwitching(false), []);
+
   // Cached per range: switching back to a week shows it instantly while it
   // refreshes in the background. keepPreviousData avoids an empty table
   // while a not-yet-cached range loads (the table is dimmed instead).
@@ -119,6 +162,8 @@ export default function HomePage() {
   });
   const data = swrData ?? EMPTY;
   const fetchData = useCallback(() => void mutate(), [mutate]);
+  // Keeps the page-switch overlay up until the table is actually there.
+  usePageBusy(!range || (loading && !swrData));
 
   // Prefetch the neighbouring weeks/months so paging is instant.
   const preloaded = useRef(new Set<string>());
@@ -126,8 +171,14 @@ export default function HomePage() {
     if (!anchor || !swrData) return;
     const shift = view === 'week' ? shiftWeek : shiftMonth;
     const rangeOf = view === 'week' ? weekRange : monthRange;
-    for (const dir of [-1, 1] as const) {
-      const key = overviewKey(rangeOf(shift(anchor, dir)));
+    const keys = ([-1, 1] as const).map((dir) =>
+      overviewKey(rangeOf(shift(anchor, dir))),
+    );
+    // ...and the other view of the same period (week <-> month).
+    keys.push(
+      overviewKey(view === 'week' ? monthRange(anchor) : weekRange(anchor)),
+    );
+    for (const key of keys) {
       if (preloaded.current.has(key)) continue;
       preloaded.current.add(key);
       preload(key, swrFetcher);
@@ -421,28 +472,18 @@ export default function HomePage() {
         <main className="mx-auto w-full max-w-[1800px] px-4 sm:px-6 py-6 lg:flex-1 lg:min-h-0 lg:flex lg:flex-col">
           {/* toolbar */}
           <div className="shrink-0 flex flex-wrap items-center gap-3 mb-5">
-            <div className="inline-flex rounded-xl bg-white ring-1 ring-slate-200 shadow-soft p-0.5 dark:bg-slate-900 dark:ring-slate-800">
-              {(['week', 'month'] as View[]).map((v) => (
-                <button
-                  key={v}
-                  onClick={() => setView(v)}
-                  className={cn(
-                    'px-3.5 py-1.5 text-sm font-medium rounded-lg transition',
-                    view === v
-                      ? 'bg-osk-50 text-osk-700 dark:bg-osk-500/15 dark:text-osk-300'
-                      : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100',
-                  )}
-                >
-                  {v === 'week' ? 'Woche' : 'Monat'}
-                </button>
-              ))}
-            </div>
+            <ViewToggle
+              value={view}
+              onChange={(v) => switchTo(() => setView(v))}
+            />
 
             <div className="inline-flex items-center rounded-xl bg-white ring-1 ring-slate-200 shadow-soft overflow-hidden dark:bg-slate-900 dark:ring-slate-800">
               <button
                 onClick={() =>
-                  setAnchor(
-                    view === 'week' ? shiftWeek(anchor!, -1) : shiftMonth(anchor!, -1),
+                  switchTo(() =>
+                    setAnchor((a) =>
+                      view === 'week' ? shiftWeek(a!, -1) : shiftMonth(a!, -1),
+                    ),
                   )
                 }
                 className="p-2 hover:bg-slate-50 text-slate-600 dark:text-slate-400 dark:hover:bg-slate-800"
@@ -451,15 +492,17 @@ export default function HomePage() {
                 <ChevronLeft className="h-4 w-4" />
               </button>
               <button
-                onClick={() => setAnchor(new Date())}
+                onClick={() => switchTo(() => setAnchor(new Date()))}
                 className="px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 border-x border-slate-200 dark:text-slate-300 dark:border-slate-800 dark:hover:bg-slate-800"
               >
                 Heute
               </button>
               <button
                 onClick={() =>
-                  setAnchor(
-                    view === 'week' ? shiftWeek(anchor!, 1) : shiftMonth(anchor!, 1),
+                  switchTo(() =>
+                    setAnchor((a) =>
+                      view === 'week' ? shiftWeek(a!, 1) : shiftMonth(a!, 1),
+                    ),
                   )
                 }
                 className="p-2 hover:bg-slate-50 text-slate-600 dark:text-slate-400 dark:hover:bg-slate-800"
@@ -602,11 +645,9 @@ export default function HomePage() {
               the inner area scrolls and keeps the day header sticky. */}
           <div
             aria-busy={loading}
-            className={cn(
-              'rounded-2xl bg-white ring-1 ring-slate-200 shadow-soft overflow-hidden transition-opacity duration-150 dark:bg-slate-900 dark:ring-slate-800 lg:min-h-0 lg:flex lg:flex-col',
-              loading && swrData && 'opacity-60',
-            )}
+            className="relative rounded-2xl bg-white ring-1 ring-slate-200 shadow-soft overflow-hidden dark:bg-slate-900 dark:ring-slate-800 lg:min-h-0 lg:flex lg:flex-col"
           >
+            <LoadingOverlay loading={loading && !!swrData} />
             <div className="scroll-container overflow-auto max-h-[calc(100dvh-6.5rem)] lg:max-h-none lg:min-h-0">
               <table
                 ref={tableRef}
@@ -1002,6 +1043,7 @@ function DayActions({
   );
 }
 
+/** Read-only cell: plain button until hovered/focused, then the tooltip. */
 function ReadOnlyCell({
   confirmation,
   size,
@@ -1009,13 +1051,54 @@ function ReadOnlyCell({
   confirmation?: Confirmation;
   size: 'sm' | 'md';
 }) {
+  const [armed, setArmed] = useState<null | 'hover' | 'focus'>(null);
   if (!confirmation) {
     return <StatusDot status={undefined} size={size} />;
   }
+  if (!armed) {
+    return (
+      <button
+        type="button"
+        onPointerEnter={() => setArmed('hover')}
+        onFocus={() => setArmed('focus')}
+        className={cn(
+          'group inline-flex items-center justify-center rounded-full cursor-default',
+          size === 'sm' ? 'h-6 w-6' : 'h-9 w-9',
+        )}
+        aria-label={STATUS_META[confirmation.status].label}
+      >
+        <StatusDot status={confirmation.status} size={size} />
+      </button>
+    );
+  }
+  return (
+    <ReadOnlyTooltip
+      confirmation={confirmation}
+      size={size}
+      autoFocus={armed === 'focus'}
+    />
+  );
+}
+
+function ReadOnlyTooltip({
+  confirmation,
+  size,
+  autoFocus,
+}: {
+  confirmation: Confirmation;
+  size: 'sm' | 'md';
+  autoFocus: boolean;
+}) {
+  const ref = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (autoFocus) ref.current?.focus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   return (
     <Tooltip.Root>
       <Tooltip.Trigger asChild>
         <button
+          ref={ref}
           type="button"
           className={cn(
             'group inline-flex items-center justify-center rounded-full cursor-default',
@@ -1056,5 +1139,66 @@ function ReadOnlyCell({
         </Tooltip.Content>
       </Tooltip.Portal>
     </Tooltip.Root>
+  );
+}
+
+/** Week/month toggle with its own state so the highlight moves at once. */
+function ViewToggle({
+  value,
+  onChange,
+}: {
+  value: View;
+  onChange: (v: View) => void;
+}) {
+  const [shown, setShown] = useState<View>(value);
+  useEffect(() => setShown(value), [value]);
+  return (
+    <div className="inline-flex rounded-xl bg-white ring-1 ring-slate-200 shadow-soft p-0.5 dark:bg-slate-900 dark:ring-slate-800">
+      {(['week', 'month'] as View[]).map((v) => (
+        <button
+          key={v}
+          aria-pressed={shown === v}
+          onClick={() => {
+            if (v === shown) return;
+            setShown(v);
+            onChange(v);
+          }}
+          className={cn(
+            'px-3.5 py-1.5 text-sm font-medium rounded-lg transition',
+            shown === v
+              ? 'bg-osk-50 text-osk-700 dark:bg-osk-500/15 dark:text-osk-300'
+              : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100',
+          )}
+        >
+          {v === 'week' ? 'Woche' : 'Monat'}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Dims the job table with a spinner while a new view/period renders or its
+ * data is still loading. The old table stays visible underneath.
+ */
+function LoadingOverlay({ loading }: { loading: boolean }) {
+  const isSwitching = useSwitching();
+  const active = isSwitching || loading;
+  return (
+    <div
+      aria-hidden={!active}
+      className={cn(
+        'absolute inset-0 z-40 flex items-center justify-center bg-white/60 backdrop-blur-[1px] dark:bg-slate-950/60',
+        // Appear instantly (the main thread may be busy right after), fade out softly.
+        active
+          ? 'opacity-100'
+          : 'pointer-events-none opacity-0 transition-opacity duration-200',
+      )}
+    >
+      <div className="flex items-center gap-2.5 rounded-xl bg-white px-4 py-2.5 text-sm font-medium text-slate-600 shadow-pop ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700">
+        <Loader2 className="h-5 w-5 animate-spin text-osk-500" />
+        Lädt …
+      </div>
+    </div>
   );
 }

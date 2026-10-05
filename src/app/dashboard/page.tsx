@@ -27,6 +27,7 @@ import { CellPopover } from '@/components/CellPopover';
 import { StatusDot } from '@/components/StatusDot';
 import { JobHistoryDialog } from '@/components/JobHistoryDialog';
 import { useCan, useCurrentUser } from '@/components/CurrentUserContext';
+import { usePageBusy } from '@/lib/navigation';
 import {
   errorMessage,
   fetchJson,
@@ -138,6 +139,7 @@ export default function DashboardPage() {
     mutate: mutateSync,
   } = useSWR<SyncStatus>('/api/sync/status', { refreshInterval: 60_000 });
   const refreshing = isValidating || syncValidating;
+  usePageBusy(!backupDate || loading || !data);
   const load = useCallback(() => {
     void mutate();
     void mutateSync();

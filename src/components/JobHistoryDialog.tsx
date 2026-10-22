@@ -81,8 +81,10 @@ export function JobHistoryDialog({
     <Dialog.Root open={job !== null} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm animate-overlay-in dark:bg-black/70" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[min(94vw,560px)] max-h-[88dvh] overflow-y-auto rounded-2xl bg-white ring-1 ring-slate-200 shadow-pop p-5 animate-dialog-in focus:outline-none dark:bg-slate-900 dark:ring-slate-800">
-          <div className="flex items-start gap-3">
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[min(94vw,560px)] max-h-[88dvh] flex flex-col rounded-2xl bg-white ring-1 ring-slate-200 shadow-pop py-5 pl-5 pr-2 animate-dialog-in focus:outline-none dark:bg-slate-900 dark:ring-slate-800">
+          {/* Header stays put; only the body below scrolls, so the scrollbar
+              keeps clear of the rounded corners. */}
+          <div className="flex items-start gap-3 pr-3">
             <div className="mt-0.5 h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0 bg-osk-50 text-osk-600 dark:bg-osk-500/15 dark:text-osk-300">
               <History className="h-5 w-5" />
             </div>
@@ -104,121 +106,125 @@ export function JobHistoryDialog({
             </Dialog.Close>
           </div>
 
-          {!view ? (
-            <Loader2 className="mt-6 h-5 w-5 animate-spin text-slate-400" />
-          ) : (
-            <>
-              <div className="mt-4 grid grid-cols-4 gap-2 text-center">
-                {(['success', 'warning', 'failed'] as Status[]).map((s) => (
-                  <div
-                    key={s}
-                    className={cn('rounded-lg py-2 ring-1', STATUS_META[s].badge)}
-                  >
-                    <div className="text-lg font-semibold leading-tight">
-                      {view.counts[s]}
-                    </div>
-                    <div className="text-[11px]">{STATUS_META[s].label}</div>
-                  </div>
-                ))}
-                <div className="rounded-lg py-2 ring-1 bg-slate-50 text-slate-600 ring-slate-200 dark:bg-slate-800/60 dark:text-slate-300 dark:ring-slate-700">
-                  <div className="text-lg font-semibold leading-tight">
-                    {view.counts.open}
-                  </div>
-                  <div className="text-[11px]">Offen</div>
-                </div>
-              </div>
-
-              <div className="mt-4">
-                <div className="grid grid-cols-7 gap-1 text-[10px] text-center text-slate-400 dark:text-slate-500 mb-1">
-                  {DOW_SHORT.map((d) => (
-                    <div key={d}>{d}</div>
-                  ))}
-                </div>
-                <div className="grid grid-cols-7 gap-1">
-                  {view.cells.map((c) => (
+          {/* -ml-1/pl-1: room for rings at the left edge, which the scroll
+              container would otherwise clip. */}
+          <div className="min-h-0 overflow-y-auto -ml-1 pl-1 pr-3">
+            {!view ? (
+              <Loader2 className="mt-6 h-5 w-5 animate-spin text-slate-400" />
+            ) : (
+              <>
+                <div className="mt-4 grid grid-cols-4 gap-2 text-center">
+                  {(['success', 'warning', 'failed'] as Status[]).map((s) => (
                     <div
-                      key={c.iso}
-                      title={
-                        c.inRange
-                          ? `${formatLong(fromISO(c.iso))}: ${
-                              c.conf ? STATUS_META[c.conf.status].label : 'offen'
-                            }${c.conf?.note ? ` – ${c.conf.note}` : ''}${
-                              c.conflict
-                                ? ` · Veeam meldete ${STATUS_META[c.conflict.status].label}`
-                                : ''
-                            }`
-                          : undefined
-                      }
-                      className={cn(
-                        'h-5 rounded',
-                        c.conflict &&
-                          'ring-2 ring-offset-1 ring-rose-500 dark:ring-offset-slate-900',
-                        !c.inRange
-                          ? 'opacity-0'
-                          : c.conf
-                            ? STATUS_META[c.conf.status].dot
-                            : 'border border-dashed border-slate-300 dark:border-slate-600',
-                      )}
-                    />
+                      key={s}
+                      className={cn('rounded-lg py-2 ring-1', STATUS_META[s].badge)}
+                    >
+                      <div className="text-lg font-semibold leading-tight">
+                        {view.counts[s]}
+                      </div>
+                      <div className="text-[11px]">{STATUS_META[s].label}</div>
+                    </div>
                   ))}
-                </div>
-              </div>
-
-              <div className="mt-5">
-                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                  Auffälligkeiten ({view.issues.length})
-                </div>
-                {view.issues.length === 0 ? (
-                  <div className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                    Keine Warnungen oder Fehler im Zeitraum.
+                  <div className="rounded-lg py-2 ring-1 bg-slate-50 text-slate-600 ring-slate-200 dark:bg-slate-800/60 dark:text-slate-300 dark:ring-slate-700">
+                    <div className="text-lg font-semibold leading-tight">
+                      {view.counts.open}
+                    </div>
+                    <div className="text-[11px]">Offen</div>
                   </div>
-                ) : (
-                  <ul className="mt-2 divide-y divide-slate-100 dark:divide-slate-800">
-                    {view.issues.map((c) => (
-                      <li key={c.date} className="py-2 text-sm">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-slate-900 dark:text-slate-100">
-                            {formatLong(fromISO(c.date))}
-                          </span>
-                          <span
-                            className={cn(
-                              'text-xs font-medium px-2 py-0.5 rounded-full ring-1',
-                              STATUS_META[c.status].badge,
-                            )}
-                          >
-                            {STATUS_META[c.status].label}
-                          </span>
-                          <span className="ml-auto text-xs text-slate-400 dark:text-slate-500">
-                            {c.confirmed_by === SYNC_AUTHOR ? 'importiert' : c.confirmed_by || '—'}
-                            {' · '}
-                            {formatUtcDateTime(c.confirmed_at)}
-                          </span>
-                        </div>
-                        {c.veeam_note && (
-                          <div className="mt-0.5 text-xs text-slate-500 whitespace-pre-wrap dark:text-slate-400">
-                            {c.veeam_note}
-                          </div>
-                        )}
-                        {c.note && (
-                          <div className="mt-0.5 text-xs text-slate-800 whitespace-pre-wrap dark:text-slate-200">
-                            <span className="font-semibold">Notiz:</span> {c.note}
-                          </div>
-                        )}
-                        {c.conflict && (
-                          <div className="mt-1 text-xs rounded-md px-2 py-1 bg-amber-50 text-amber-900 ring-1 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-200 dark:ring-amber-500/30">
-                            Veeam meldete{' '}
-                            <strong>{STATUS_META[c.conflict.status].label}</strong>
-                            {c.conflict.note ? ` – ${c.conflict.note}` : ''} · nicht
-                            übernommen, weil manuell quittiert
-                          </div>
-                        )}
-                      </li>
+                </div>
+
+                <div className="mt-4">
+                  <div className="grid grid-cols-7 gap-1 text-[10px] text-center text-slate-400 dark:text-slate-500 mb-1">
+                    {DOW_SHORT.map((d) => (
+                      <div key={d}>{d}</div>
                     ))}
-                  </ul>
-                )}
-              </div>
-            </>
-          )}
+                  </div>
+                  <div className="grid grid-cols-7 gap-1">
+                    {view.cells.map((c) => (
+                      <div
+                        key={c.iso}
+                        title={
+                          c.inRange
+                            ? `${formatLong(fromISO(c.iso))}: ${
+                                c.conf ? STATUS_META[c.conf.status].label : 'offen'
+                              }${c.conf?.note ? ` – ${c.conf.note}` : ''}${
+                                c.conflict
+                                  ? ` · Veeam meldete ${STATUS_META[c.conflict.status].label}`
+                                  : ''
+                              }`
+                            : undefined
+                        }
+                        className={cn(
+                          'h-5 rounded',
+                          c.conflict &&
+                            'ring-2 ring-offset-1 ring-rose-500 dark:ring-offset-slate-900',
+                          !c.inRange
+                            ? 'opacity-0'
+                            : c.conf
+                              ? STATUS_META[c.conf.status].dot
+                              : 'border border-dashed border-slate-300 dark:border-slate-600',
+                        )}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mt-5">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    Auffälligkeiten ({view.issues.length})
+                  </div>
+                  {view.issues.length === 0 ? (
+                    <div className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                      Keine Warnungen oder Fehler im Zeitraum.
+                    </div>
+                  ) : (
+                    <ul className="mt-2 divide-y divide-slate-100 dark:divide-slate-800">
+                      {view.issues.map((c) => (
+                        <li key={c.date} className="py-2 text-sm">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-slate-900 dark:text-slate-100">
+                              {formatLong(fromISO(c.date))}
+                            </span>
+                            <span
+                              className={cn(
+                                'text-xs font-medium px-2 py-0.5 rounded-full ring-1',
+                                STATUS_META[c.status].badge,
+                              )}
+                            >
+                              {STATUS_META[c.status].label}
+                            </span>
+                            <span className="ml-auto text-xs text-slate-400 dark:text-slate-500">
+                              {c.confirmed_by === SYNC_AUTHOR ? 'importiert' : c.confirmed_by || '—'}
+                              {' · '}
+                              {formatUtcDateTime(c.confirmed_at)}
+                            </span>
+                          </div>
+                          {c.veeam_note && (
+                            <div className="mt-0.5 text-xs text-slate-500 whitespace-pre-wrap dark:text-slate-400">
+                              {c.veeam_note}
+                            </div>
+                          )}
+                          {c.note && (
+                            <div className="mt-0.5 text-xs text-slate-800 whitespace-pre-wrap dark:text-slate-200">
+                              <span className="font-semibold">Notiz:</span> {c.note}
+                            </div>
+                          )}
+                          {c.conflict && (
+                            <div className="mt-1 text-xs rounded-md px-2 py-1 bg-amber-50 text-amber-900 ring-1 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-200 dark:ring-amber-500/30">
+                              Veeam meldete{' '}
+                              <strong>{STATUS_META[c.conflict.status].label}</strong>
+                              {c.conflict.note ? ` – ${c.conflict.note}` : ''} · nicht
+                              übernommen, weil manuell quittiert
+                            </div>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>

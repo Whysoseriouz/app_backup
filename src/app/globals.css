@@ -30,26 +30,44 @@ html {
   }
 }
 
-/* subtle scrollbar */
-.scroll-container::-webkit-scrollbar {
-  height: 10px;
+/* Subtle scrollbars everywhere (page, dialogs, windows): thin rounded thumb,
+   no arrow buttons, transparent track. Chrome/Edge use ::-webkit-scrollbar
+   (the standard properties would bring back Windows' arrow buttons there);
+   Firefox only knows the standard ones. */
+::-webkit-scrollbar {
   width: 10px;
+  height: 10px;
 }
-.scroll-container::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 999px;
-}
-.scroll-container::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
-}
-.scroll-container::-webkit-scrollbar-track {
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
   background: transparent;
 }
-.dark .scroll-container::-webkit-scrollbar-thumb {
-  background: #475569;
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
 }
-.dark .scroll-container::-webkit-scrollbar-thumb:hover {
-  background: #64748b;
+::-webkit-scrollbar-thumb:hover {
+  background-color: #94a3b8;
+}
+html.dark::-webkit-scrollbar-thumb,
+.dark ::-webkit-scrollbar-thumb {
+  background-color: #475569;
+}
+html.dark::-webkit-scrollbar-thumb:hover,
+.dark ::-webkit-scrollbar-thumb:hover {
+  background-color: #64748b;
+}
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+  }
+  html.dark,
+  .dark * {
+    scrollbar-color: #475569 transparent;
+  }
 }
 
 /* Matrix crosshair: highlights row + column under the mouse. Classes are

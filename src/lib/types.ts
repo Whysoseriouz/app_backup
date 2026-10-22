@@ -19,7 +19,10 @@ export interface Confirmation {
   job_id: number;
   date: string;
   status: Status;
+  /** Remark of the person who confirmed the cell. */
   note: string | null;
+  /** Latest message from Veeam for this cell (written by the sync only). */
+  veeam_note: string | null;
   confirmed_by: string | null;
   confirmed_at: string;
 }

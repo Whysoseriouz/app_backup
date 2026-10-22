@@ -60,15 +60,21 @@ export async function POST(req: NextRequest) {
     jobsByName.set(j.name.toLowerCase(), j.id);
   }
 
+  // The Veeam message goes to veeam_note; `note` is reserved for people.
   const upsert = db.prepare(`
-    INSERT INTO confirmations (job_id, date, status, note, confirmed_by, confirmed_at)
+    INSERT INTO confirmations (job_id, date, status, veeam_note, confirmed_by, confirmed_at)
     VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     ON CONFLICT(job_id, date) DO UPDATE SET
       status = excluded.status,
-      note = excluded.note,
+      veeam_note = excluded.veeam_note,
       confirmed_by = excluded.confirmed_by,
       confirmed_at = CURRENT_TIMESTAMP
   `);
+  // Manually confirmed cells keep status/note/author, but still get the
+  // latest Veeam message attached.
+  const updateVeeamNote = db.prepare(
+    'UPDATE confirmations SET veeam_note = ? WHERE job_id = ? AND date = ?',
+  );
 
   const getExisting = db.prepare(
     'SELECT confirmed_by FROM confirmations WHERE job_id = ? AND date = ?',
@@ -115,6 +121,7 @@ export async function POST(req: NextRequest) {
       if (existing && existing.confirmed_by !== SYNC_AUTHOR) {
         stats.skipped_manual++;
         log(jobId, 'skipped_manual');
+        updateVeeamNote.run(note, jobId, date);
         continue;
       }
       upsert.run(

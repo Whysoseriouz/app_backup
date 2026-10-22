@@ -389,7 +389,14 @@ export default function ReportPage() {
                           </span>
                         </td>
                         <td className="px-3 py-1.5 text-slate-600 dark:text-slate-400 print:text-slate-600">
-                          {p.note || '—'}
+                          {p.note && <div>{p.note}</div>}
+                          {p.veeam_note && (
+                            <div className={p.note ? 'mt-0.5 text-slate-400 print:text-slate-500' : ''}>
+                              {p.note ? 'Veeam: ' : ''}
+                              {p.veeam_note}
+                            </div>
+                          )}
+                          {!p.note && !p.veeam_note && '—'}
                         </td>
                         <td className="px-3 py-1.5 text-slate-500 dark:text-slate-400 print:text-slate-500">
                           {p.confirmed_by || '—'}

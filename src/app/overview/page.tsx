@@ -1147,6 +1147,11 @@ function ReadOnlyTooltip({
               {confirmation.note}
             </div>
           )}
+          {confirmation.veeam_note && (
+            <div className="mt-1 line-clamp-3 text-slate-400 leading-snug">
+              Veeam: {confirmation.veeam_note}
+            </div>
+          )}
           {confirmation.confirmed_by && (
             <div className="mt-1 text-[10px] text-slate-400">
               von {confirmation.confirmed_by}

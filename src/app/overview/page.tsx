@@ -22,6 +22,7 @@ import {
   Check,
   Search,
   X as XIcon,
+  BadgeCheck,
 } from 'lucide-react';
 import { NavBar } from '@/components/NavBar';
 import { CellPopover } from '@/components/CellPopover';
@@ -49,6 +50,7 @@ import {
   MONTH_LONG,
   formatLong,
   formatShort,
+  formatUtcDateTime,
   fromISO,
   lastBackupDateISO,
   monthRange,
@@ -232,6 +234,11 @@ export default function HomePage() {
     [data.jobs, confByKey, backupDate],
   );
   const confirmedCountBackupDate = data.jobs.length - openCountBackupDate;
+
+  const checkByDate = useMemo(
+    () => new Map((data.checks ?? []).map((c) => [c.date, c])),
+    [data.checks],
+  );
 
   const conflictByKey = useMemo(() => {
     const map = new Map<string, SyncConflict>();
@@ -735,6 +742,16 @@ export default function HomePage() {
                             >
                               {d.getDate()}
                             </div>
+                            {checkByDate.has(iso) && (
+                              <span
+                                title={`Kontrolle bestätigt von ${checkByDate.get(iso)!.checked_by} am ${formatUtcDateTime(checkByDate.get(iso)!.checked_at)}`}
+                                aria-label="Kontrolle bestätigt"
+                                className="mt-0.5 inline-flex items-center gap-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400"
+                              >
+                                <BadgeCheck className={view === 'week' ? 'h-3.5 w-3.5' : 'h-3 w-3'} />
+                                {view === 'week' && 'kontrolliert'}
+                              </span>
+                            )}
                             {canWrite && view === 'week' && (
                               <DayActions
                                 view={view}

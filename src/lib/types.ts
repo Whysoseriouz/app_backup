@@ -85,10 +85,23 @@ export interface SyncConflict {
   received_at: string;
 }
 
+/** Daily sign-off "backups of this day were checked". */
+export interface DailyCheck {
+  date: string;
+  checked_by: string;
+  checked_at: string;
+  note: string | null;
+  total_jobs: number;
+  open_count: number;
+  warning_count: number;
+  failed_count: number;
+}
+
 export interface OverviewPayload {
   jobs: Job[];
   confirmations: Confirmation[];
   conflicts?: SyncConflict[];
+  checks?: DailyCheck[];
 }
 
 export const STATUS_META: Record<

@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { NavBar } from '@/components/NavBar';
 import { UnknownJobsPanel } from '@/components/UnknownJobsPanel';
+import { DailyCheckCard } from '@/components/DailyCheckCard';
 import { CellPopover } from '@/components/CellPopover';
 import { StatusDot } from '@/components/StatusDot';
 import { JobHistoryDialog } from '@/components/JobHistoryDialog';
@@ -462,6 +463,17 @@ export default function DashboardPage() {
             </Link>
           </div>
         </header>
+
+        <DailyCheckCard
+          date={day}
+          check={data.checks?.find((c) => c.date === day)}
+          counts={{
+            failed: counts.failed,
+            warning: counts.warning,
+            open: openJobs.length,
+            total: jobs.length,
+          }}
+        />
 
         <UnknownJobsPanel onChanged={load} className="mt-4" />
 

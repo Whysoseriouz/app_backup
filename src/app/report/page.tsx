@@ -11,8 +11,10 @@ import {
   DOW_SHORT,
   MONTH_LONG,
   formatLong,
+  fromISO,
   formatShort,
   formatUtcDateTime,
+  lastBackupDateISO,
   monthRange,
   shiftMonth,
   shiftWeek,
@@ -392,6 +394,78 @@ export default function ReportPage() {
           )}
 
           {/* footer (print) */}
+          {/* daily sign-offs ("Kontrolle bestätigt") as audit evidence */}
+          {(() => {
+            const last = lastBackupDateISO();
+            const checks = new Map((data.checks ?? []).map((c) => [c.date, c]));
+            const days = range.days.map(toISO).filter((iso) => iso <= last);
+            if (days.length === 0) return null;
+            const done = days.filter((iso) => checks.has(iso)).length;
+            return (
+              <div className="mt-6 pt-5 border-t border-slate-200 dark:border-slate-800 print:border-slate-200 print:break-inside-avoid">
+                <h2 className="text-sm font-semibold text-slate-900 mb-2 dark:text-slate-100 print:text-slate-900">
+                  Tageskontrolle ({done} von {days.length} Tagen bestätigt)
+                </h2>
+                <div className="rounded-lg ring-1 ring-slate-200 overflow-hidden dark:ring-slate-800 print:ring-slate-200">
+                  <table className="w-full text-xs">
+                    <thead className="bg-slate-50 dark:bg-slate-800/40 print:bg-slate-50">
+                      <tr className="text-left text-slate-500 dark:text-slate-400 print:text-slate-500">
+                        <th className="px-3 py-2 font-medium">Sicherungstag</th>
+                        <th className="px-3 py-2 font-medium">Kontrolliert von</th>
+                        <th className="px-3 py-2 font-medium">Am</th>
+                        <th className="px-3 py-2 font-medium">Stand bei Kontrolle</th>
+                        <th className="px-3 py-2 font-medium">Kommentar</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800 print:divide-slate-100">
+                      {days.map((iso) => {
+                        const c = checks.get(iso);
+                        const d = fromISO(iso);
+                        const label = `${DOW_SHORT[(d.getDay() + 6) % 7]} ${formatLong(d)}`;
+                        if (!c) {
+                          return (
+                            <tr key={iso}>
+                              <td className="px-3 py-1.5 whitespace-nowrap text-slate-700 dark:text-slate-300 print:text-slate-700">
+                                {label}
+                              </td>
+                              <td colSpan={4} className="px-3 py-1.5 text-amber-700 dark:text-amber-400 print:text-amber-700">
+                                nicht bestätigt
+                              </td>
+                            </tr>
+                          );
+                        }
+                        const state = [
+                          c.failed_count ? `${c.failed_count} Fehler` : '',
+                          c.warning_count ? `${c.warning_count} Warn.` : '',
+                          c.open_count ? `${c.open_count} offen` : '',
+                        ].filter(Boolean);
+                        return (
+                          <tr key={iso}>
+                            <td className="px-3 py-1.5 whitespace-nowrap text-slate-700 dark:text-slate-300 print:text-slate-700">
+                              {label}
+                            </td>
+                            <td className="px-3 py-1.5 font-medium text-slate-800 dark:text-slate-200 print:text-slate-800">
+                              {c.checked_by}
+                            </td>
+                            <td className="px-3 py-1.5 whitespace-nowrap text-slate-500 dark:text-slate-400 print:text-slate-500">
+                              {formatUtcDateTime(c.checked_at)}
+                            </td>
+                            <td className="px-3 py-1.5 text-slate-600 dark:text-slate-400 print:text-slate-600">
+                              {state.length ? state.join(', ') : 'in Ordnung'}
+                            </td>
+                            <td className="px-3 py-1.5 text-slate-600 dark:text-slate-400 print:text-slate-600">
+                              {c.note || '—'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })()}
+
           <div className="mt-8 pt-4 border-t border-slate-200 text-[10px] text-slate-400 flex justify-between dark:border-slate-800 dark:text-slate-500 print:border-slate-200 print:text-slate-400">
             <span>Backup Check · {rangeLabel}</span>
             <span>Seite erzeugt {formatLong(new Date())}</span>

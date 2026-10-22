@@ -104,6 +104,19 @@ function migrate(db: Database.Database) {
       ON sync_run_items(run_id);
     CREATE INDEX IF NOT EXISTS idx_sync_run_items_job
       ON sync_run_items(job_id, run_id);
+
+    -- "I checked the backups of this day": one sign-off per backup date,
+    -- with a snapshot of the matrix state at that moment (audit trail).
+    CREATE TABLE IF NOT EXISTS daily_checks (
+      date TEXT PRIMARY KEY,
+      checked_by TEXT NOT NULL,
+      checked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      note TEXT,
+      total_jobs INTEGER NOT NULL DEFAULT 0,
+      open_count INTEGER NOT NULL DEFAULT 0,
+      warning_count INTEGER NOT NULL DEFAULT 0,
+      failed_count INTEGER NOT NULL DEFAULT 0
+    );
   `);
 
   // Columns added after the initial schema (SQLite has no ADD COLUMN IF NOT EXISTS).

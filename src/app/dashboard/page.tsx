@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { NavBar } from '@/components/NavBar';
 import { UnknownJobsPanel } from '@/components/UnknownJobsPanel';
-import { DailyCheckCard } from '@/components/DailyCheckCard';
+import { DailyCheckControl } from '@/components/DailyCheckControl';
 import { CellPopover } from '@/components/CellPopover';
 import { StatusDot } from '@/components/StatusDot';
 import { JobHistoryDialog } from '@/components/JobHistoryDialog';
@@ -76,7 +76,10 @@ interface DaySummary {
 interface IssueItem {
   jobId: number;
   status: Status;
+  /** Person's remark. */
   note: string | null;
+  /** Veeam's message. */
+  veeamNote: string | null;
   at: string;
   by: string | null;
   confirmation?: Confirmation;
@@ -216,6 +219,7 @@ export default function DashboardPage() {
           jobId: c.job_id,
           status: c.status,
           note: c.note,
+          veeamNote: c.veeam_note,
           at: c.confirmed_at,
           by: c.confirmed_by,
           confirmation: c,
@@ -227,7 +231,8 @@ export default function DashboardPage() {
           return {
             jobId: c.job_id,
             status: c.status,
-            note: c.note,
+            note: conf?.note ?? null,
+            veeamNote: c.note,
             at: c.received_at,
             by: SYNC_AUTHOR,
             confirmation: conf,
@@ -379,6 +384,7 @@ export default function DashboardPage() {
   const completion = jobs.length ? Math.round((confirmed / jobs.length) * 100) : 0;
   const state = getState(counts, openJobs.length, dayConflicts.length);
   const isLatest = day === backupDate;
+  const dayCheck = data.checks?.find((c) => c.date === day);
   const dayIdx = trendDates.indexOf(day);
 
   return (
@@ -409,11 +415,26 @@ export default function DashboardPage() {
                   </span>
                 )}{' '}
                 · {state.description}
+                {!dayCheck && (
+                  <span className="ml-1.5 font-medium text-osk-600 dark:text-osk-300">
+                    · Kontrolle noch offen
+                  </span>
+                )}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <DailyCheckControl
+              date={day}
+              check={dayCheck}
+              counts={{
+                failed: counts.failed,
+                warning: counts.warning,
+                open: openJobs.length,
+                total: jobs.length,
+              }}
+            />
             <div className="inline-flex items-center rounded-lg ring-1 ring-slate-200 overflow-hidden dark:ring-slate-800">
               <button
                 type="button"
@@ -463,17 +484,6 @@ export default function DashboardPage() {
             </Link>
           </div>
         </header>
-
-        <DailyCheckCard
-          date={day}
-          check={data.checks?.find((c) => c.date === day)}
-          counts={{
-            failed: counts.failed,
-            warning: counts.warning,
-            open: openJobs.length,
-            total: jobs.length,
-          }}
-        />
 
         <UnknownJobsPanel onChanged={load} className="mt-4" />
 
@@ -849,8 +859,13 @@ function AttentionRow({
           !expanded && 'line-clamp-1',
         )}
       >
-        {item.note || 'Keine technische Detailmeldung hinterlegt.'}
+        {item.veeamNote || 'Keine technische Detailmeldung hinterlegt.'}
       </button>
+      {item.note && (
+        <p className="mt-1 text-xs leading-4 text-slate-800 dark:text-slate-200">
+          <span className="font-semibold">Notiz:</span> {item.note}
+        </p>
+      )}
       <div className="mt-1.5 flex items-center gap-3 text-[10px] text-slate-400 dark:text-slate-500">
         <span className="inline-flex items-center gap-1">
           <Clock3 className="h-3 w-3" />

@@ -7,6 +7,7 @@ import Image from 'next/image';
 import { getISOWeek } from 'date-fns';
 import { ChevronLeft, ChevronRight, Printer } from 'lucide-react';
 import { NavBar } from '@/components/NavBar';
+import { DayCheckBadge } from '@/components/DayCheckBadge';
 import {
   DOW_SHORT,
   MONTH_LONG,
@@ -36,7 +37,8 @@ export default function ReportPage() {
   // Stable initial anchor avoids Server/Client Date mismatch (Hydration #418).
   const [anchor, setAnchor] = useState<Date | null>(null);
   useEffect(() => {
-    setAnchor(new Date());
+    // Backup day, not calendar day (Monday -> last week's report).
+    setAnchor(fromISO(lastBackupDateISO()));
   }, []);
 
   const range = useMemo(
@@ -59,6 +61,10 @@ export default function ReportPage() {
     [swrData],
   );
   usePageBusy(!range || !swrData);
+  const checkByDate = useMemo(
+    () => new Map((data.checks ?? []).map((c) => [c.date, c])),
+    [data.checks],
+  );
 
   const confByKey = useMemo(() => {
     const map = new Map<string, Confirmation>();
@@ -158,7 +164,7 @@ export default function ReportPage() {
           </div>
 
           <button
-            onClick={() => setAnchor(new Date())}
+            onClick={() => setAnchor(fromISO(lastBackupDateISO()))}
             className="px-3 py-1.5 text-sm font-medium rounded-xl bg-white ring-1 ring-slate-200 text-slate-700 hover:bg-slate-50 shadow-soft dark:bg-slate-900 dark:ring-slate-800 dark:text-slate-300 dark:hover:bg-slate-800"
           >
             {view === 'week' ? 'Aktuelle Woche' : 'Aktueller Monat'}
@@ -271,6 +277,12 @@ export default function ReportPage() {
                         >
                           {d.getDate()}
                         </div>
+                        {checkByDate.has(toISO(d)) && (
+                          <DayCheckBadge
+                            check={checkByDate.get(toISO(d))!}
+                            compact={view === 'month'}
+                          />
+                        )}
                       </th>
                     );
                   })}

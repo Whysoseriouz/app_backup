@@ -1,11 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import useSWR from 'swr';
 import { usePageBusy } from '@/lib/navigation';
 import { ChevronRight, Loader2, RefreshCw } from 'lucide-react';
 import { NavBar } from '@/components/NavBar';
-import { formatLong, formatUtcDateTime, fromISO } from '@/lib/date';
+import { MONTH_LONG, formatLong, formatUtcDateTime, fromISO } from '@/lib/date';
 import {
   STATUS_META,
   SYNC_OUTCOME_LABEL,
@@ -23,12 +23,29 @@ export default function SyncLogPage() {
     data,
     isValidating: refreshing,
     mutate,
-  } = useSWR<SyncRun[]>('/api/sync/runs?limit=90', { refreshInterval: 60_000 });
+  } = useSWR<SyncRun[]>('/api/sync/runs?limit=500', { refreshInterval: 60_000 });
   const runs = data ?? null;
   usePageBusy(!data);
   const load = () => void mutate();
   // All runs start collapsed; a click opens one.
   const [openId, setOpenId] = useState<number | null>(null);
+
+  // Grouped by month of the backup day, newest first.
+  const months = useMemo(() => {
+    const groups = new Map<string, SyncRun[]>();
+    const sorted = [...(runs ?? [])].sort(
+      (a, b) => b.date.localeCompare(a.date) || b.id - a.id,
+    );
+    for (const run of sorted) {
+      const key = run.date.slice(0, 7);
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(run);
+    }
+    return [...groups.entries()].map(([key, list]) => ({ key, runs: list }));
+  }, [runs]);
+  // Newest month open by default, older ones collapsed.
+  const [monthOpen, setMonthOpen] = useState<Record<string, boolean>>({});
+  const isMonthOpen = (key: string) => monthOpen[key] ?? key === months[0]?.key;
 
   return (
     <div className="min-h-screen">
@@ -64,17 +81,68 @@ export default function SyncLogPage() {
             Veeam-Skripts erscheint hier.
           </div>
         ) : (
-          <div className="rounded-2xl bg-white ring-1 ring-slate-200 shadow-soft divide-y divide-slate-100 overflow-hidden dark:bg-slate-900 dark:ring-slate-800 dark:divide-slate-800">
-            {runs.map((run) => (
-              <RunRow
-                key={run.id}
-                run={run}
-                open={openId === run.id}
-                onToggle={() =>
-                  setOpenId((id) => (id === run.id ? null : run.id))
-                }
-              />
-            ))}
+          <div className="space-y-3">
+            {months.map(({ key, runs: monthRuns }) => {
+              const open = isMonthOpen(key);
+              const sum = (k: 'skipped_manual' | 'unknown' | 'invalid') =>
+                monthRuns.reduce((n, r) => n + r[k], 0);
+              const skipped = sum('skipped_manual');
+              const unknown = sum('unknown');
+              const invalid = sum('invalid');
+              const [y, m] = key.split('-').map(Number);
+              return (
+                <section
+                  key={key}
+                  className="rounded-2xl bg-white ring-1 ring-slate-200 shadow-soft overflow-hidden dark:bg-slate-900 dark:ring-slate-800"
+                >
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setMonthOpen((s) => ({ ...s, [key]: !open }))
+                    }
+                    aria-expanded={open}
+                    className="w-full flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 text-left bg-slate-50/70 hover:bg-slate-100/70 transition dark:bg-slate-800/40 dark:hover:bg-slate-800/70"
+                  >
+                    <ChevronRight
+                      className={cn(
+                        'h-4 w-4 text-slate-500 transition-transform',
+                        open && 'rotate-90',
+                      )}
+                    />
+                    <h2 className="min-w-[160px] text-base font-semibold text-slate-900 dark:text-slate-100">
+                      {MONTH_LONG[m - 1]} {y}
+                    </h2>
+                    <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                      <Chip tone="slate">
+                        {monthRuns.length} {monthRuns.length === 1 ? 'Lauf' : 'Läufe'}
+                      </Chip>
+                      {skipped > 0 && <Chip tone="amber">{skipped} übersprungen</Chip>}
+                      {unknown > 0 && <Chip tone="amber">{unknown} unbekannt</Chip>}
+                      {invalid > 0 && <Chip tone="rose">{invalid} ungültig</Chip>}
+                    </div>
+                    {skipped + unknown + invalid === 0 && (
+                      <span className="ml-auto text-xs text-slate-400 dark:text-slate-500">
+                        alles übernommen
+                      </span>
+                    )}
+                  </button>
+                  {open && (
+                    <div className="divide-y divide-slate-100 border-t border-slate-100 dark:divide-slate-800 dark:border-slate-800">
+                      {monthRuns.map((run) => (
+                        <RunRow
+                          key={run.id}
+                          run={run}
+                          open={openId === run.id}
+                          onToggle={() =>
+                            setOpenId((id) => (id === run.id ? null : run.id))
+                          }
+                        />
+                      ))}
+                    </div>
+                  )}
+                </section>
+              );
+            })}
           </div>
         )}
       </main>

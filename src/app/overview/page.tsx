@@ -22,7 +22,6 @@ import {
   Check,
   Search,
   X as XIcon,
-  BadgeCheck,
 } from 'lucide-react';
 import { NavBar } from '@/components/NavBar';
 import { CellPopover } from '@/components/CellPopover';
@@ -30,6 +29,7 @@ import { StatusDot } from '@/components/StatusDot';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { UnknownJobsPanel } from '@/components/UnknownJobsPanel';
 import { JobHistoryDialog } from '@/components/JobHistoryDialog';
+import { DayCheckBadge } from '@/components/DayCheckBadge';
 import { useCan, useCurrentUser } from '@/components/CurrentUserContext';
 import { usePageBusy } from '@/lib/navigation';
 import {
@@ -50,7 +50,6 @@ import {
   MONTH_LONG,
   formatLong,
   formatShort,
-  formatUtcDateTime,
   fromISO,
   lastBackupDateISO,
   monthRange,
@@ -113,7 +112,9 @@ export default function HomePage() {
   useEffect(() => {
     // Build the (large) table as an interruptible transition so opening the
     // page doesn't block the browser in one go.
-    startTransition(() => setAnchor(new Date()));
+    // Anchor on the backup day, not the calendar day: on Mondays the last
+    // backup day is Sunday, so the finished week is the relevant one.
+    startTransition(() => setAnchor(fromISO(lastBackupDateISO())));
   }, []);
   const [resetDialog, setResetDialog] = useState<{ date: string } | null>(null);
   const [rowFilter, setRowFilter] = useState<RowFilter>('all');
@@ -499,7 +500,10 @@ export default function HomePage() {
                 <ChevronLeft className="h-4 w-4" />
               </button>
               <button
-                onClick={() => switchTo(() => setAnchor(new Date()))}
+                onClick={() =>
+                  switchTo(() => setAnchor(fromISO(lastBackupDateISO())))
+                }
+                title="Zur Woche bzw. zum Monat des aktuellen Sicherungstags"
                 className="px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 border-x border-slate-200 dark:text-slate-300 dark:border-slate-800 dark:hover:bg-slate-800"
               >
                 Heute
@@ -743,14 +747,10 @@ export default function HomePage() {
                               {d.getDate()}
                             </div>
                             {checkByDate.has(iso) && (
-                              <span
-                                title={`Kontrolle bestätigt von ${checkByDate.get(iso)!.checked_by} am ${formatUtcDateTime(checkByDate.get(iso)!.checked_at)}`}
-                                aria-label="Kontrolle bestätigt"
-                                className="mt-0.5 inline-flex items-center gap-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400"
-                              >
-                                <BadgeCheck className={view === 'week' ? 'h-3.5 w-3.5' : 'h-3 w-3'} />
-                                {view === 'week' && 'kontrolliert'}
-                              </span>
+                              <DayCheckBadge
+                                check={checkByDate.get(iso)!}
+                                compact={view === 'month'}
+                              />
                             )}
                             {canWrite && view === 'week' && (
                               <DayActions

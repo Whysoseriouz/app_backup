@@ -107,6 +107,11 @@ function CellPopoverInner({
   }, [focusOnMount]);
   const [selected, setSelected] = useState<Status>('success');
   const [note, setNote] = useState<string>('');
+  // Veeam's own message for this cell. It is shown read-only at the top and
+  // kept as the cell's note when the user leaves the note field empty – so
+  // the field is only for the user's own remark and nothing shows twice.
+  const [keepNote, setKeepNote] = useState<string | null>(null);
+  const noteEdited = useRef(false);
   const [by, setBy] = useState<string>('');
   // Suppress tooltip briefly after closing the popover so it doesn't
   // immediately pop up while the cursor is still parked on the cell.
@@ -135,7 +140,18 @@ function CellPopoverInner({
   useEffect(() => {
     if (open) {
       setSelected(confirmation?.status ?? 'success');
-      setNote(confirmation?.note ?? '');
+      noteEdited.current = false;
+      const veeamNote =
+        !!confirmation?.note &&
+        (confirmation.confirmed_by === SYNC_AUTHOR ||
+          confirmation.note.trim() === report?.note?.trim());
+      if (veeamNote) {
+        setNote('');
+        setKeepNote(confirmation.note);
+      } else {
+        setNote(confirmation?.note ?? '');
+        setKeepNote(null);
+      }
       // Non-admin users always quittieren in ihrem eigenen Namen; Admins
       // duerfen den bestehenden Wert uebernehmen oder frei eingeben.
       // Sync-Quittungen nie unter "Veeam-Sync" weiterfuehren, sonst ueberschreibt
@@ -151,11 +167,22 @@ function CellPopoverInner({
 
   // Close right away; the caller updates the cell optimistically and saves in
   // the background (errors surface as a toast there).
+  // Report arrives after opening (not cached yet): if the stored note is just
+  // Veeam's message, move it out of the field as well.
+  useEffect(() => {
+    if (!open || noteEdited.current || !report?.note || !confirmation?.note) return;
+    if (confirmation.note.trim() === report.note.trim()) {
+      setNote('');
+      setKeepNote(confirmation.note);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, report?.note]);
+
   function handleSave() {
     setOpen(false);
     triggerRef.current?.focus();
     void Promise.resolve(
-      onSave(selected, note.trim() || null, by.trim() || null),
+      onSave(selected, note.trim() || keepNote || null, by.trim() || null),
     ).catch(() => {});
   }
 
@@ -288,7 +315,23 @@ function CellPopoverInner({
             </button>
           </div>
 
-          {report && <SyncReportBox report={report} current={current} />}
+          {report ? (
+            <SyncReportBox report={report} current={current} />
+          ) : (
+            keepNote && (
+              // Imported before the sync protocol existed: no report row, so
+              // show the stored Veeam message here instead.
+              <div className="mt-3 rounded-lg bg-slate-50 px-2.5 py-2 text-xs text-slate-600 ring-1 ring-slate-200 dark:bg-slate-800/50 dark:text-slate-300 dark:ring-slate-700">
+                <div className="flex items-center gap-1.5 font-medium">
+                  <CloudDownload className="h-3.5 w-3.5 shrink-0" />
+                  Veeam-Meldung (importiert)
+                </div>
+                <div className="mt-1 max-h-[30vh] overflow-y-auto leading-snug whitespace-pre-wrap">
+                  {keepNote}
+                </div>
+              </div>
+            )
+          )}
 
           <div className="mt-3 grid grid-cols-3 gap-2">
             <StatusOption
@@ -316,7 +359,10 @@ function CellPopoverInner({
           </label>
           <textarea
             value={note}
-            onChange={(e) => setNote(e.target.value)}
+            onChange={(e) => {
+              noteEdited.current = true;
+              setNote(e.target.value);
+            }}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
@@ -325,7 +371,11 @@ function CellPopoverInner({
             }}
             rows={2}
             className="mt-1 w-full min-h-[3.25rem] flex-[1_1_auto] text-sm rounded-lg ring-1 ring-slate-200 focus:ring-2 focus:ring-osk-500 focus:outline-none px-2.5 py-1.5 resize-none bg-white text-slate-900 placeholder:text-slate-400 dark:ring-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500"
-            placeholder="z. B. Veeam-Warnung, nachgeholt um 06:00. Enter speichert, Shift+Enter = neue Zeile."
+            placeholder={
+              keepNote
+                ? 'Eigene Notiz – leer lassen, dann bleibt die Veeam-Meldung gespeichert. Enter speichert.'
+                : 'z. B. Veeam-Warnung, nachgeholt um 06:00. Enter speichert, Shift+Enter = neue Zeile.'
+            }
           />
 
           <label className="block mt-2 text-xs font-medium text-slate-600 dark:text-slate-400">

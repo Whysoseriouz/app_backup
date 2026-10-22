@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { listConflicts } from '@/lib/sync-log';
-import type { Job, Confirmation } from '@/lib/types';
+import type { Job, Confirmation, DailyCheck } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -34,6 +34,9 @@ export async function GET(req: NextRequest) {
     .all(start, end) as Confirmation[];
 
   const conflicts = listConflicts(db, start, end);
+  const checks = db
+    .prepare('SELECT * FROM daily_checks WHERE date >= ? AND date <= ? ORDER BY date')
+    .all(start, end) as DailyCheck[];
 
-  return NextResponse.json({ jobs, confirmations, conflicts });
+  return NextResponse.json({ jobs, confirmations, conflicts, checks });
 }

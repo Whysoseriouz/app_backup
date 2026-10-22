@@ -28,6 +28,7 @@ export function withUpsert(
     date: c.date,
     status: c.status,
     note: c.note,
+    veeam_note: existing?.veeam_note ?? null,
     confirmed_by: c.confirmed_by,
     confirmed_at: nowUtc(),
   };
@@ -78,6 +79,7 @@ export function withBulkSuccess(
       date,
       status: 'success',
       note: null,
+      veeam_note: null,
       confirmed_by: by,
       confirmed_at: at,
     }));

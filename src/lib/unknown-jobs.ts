@@ -65,7 +65,7 @@ export function adoptUnknownResults(
   const tx = db.transaction(() => {
     const res = db
       .prepare(
-        `INSERT INTO confirmations (job_id, date, status, note, confirmed_by, confirmed_at)
+        `INSERT INTO confirmations (job_id, date, status, veeam_note, confirmed_by, confirmed_at)
          SELECT ?, date, status, note, ?, received_at
          FROM sync_unknown_results WHERE name = ?
          ON CONFLICT(job_id, date) DO NOTHING`,

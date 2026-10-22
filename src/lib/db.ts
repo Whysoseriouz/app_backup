@@ -119,6 +119,26 @@ function migrate(db: Database.Database) {
     );
   `);
 
+  // Veeam's message gets its own column, so a person's note no longer
+  // replaces it. One-time move of existing data: notes written by the sync,
+  // and manual notes that are just a copy of the latest sync message.
+  const confCols = (
+    db.prepare('PRAGMA table_info(confirmations)').all() as { name: string }[]
+  ).map((c) => c.name);
+  if (!confCols.includes('veeam_note')) {
+    db.transaction(() => {
+      db.exec('ALTER TABLE confirmations ADD COLUMN veeam_note TEXT');
+      db.exec(`UPDATE confirmations SET veeam_note = note, note = NULL
+               WHERE confirmed_by = 'Veeam-Sync' AND note IS NOT NULL`);
+      db.exec(`UPDATE confirmations SET veeam_note = note, note = NULL
+               WHERE note IS NOT NULL AND note = (
+                 SELECT i.note FROM sync_run_items i
+                 JOIN sync_runs r ON r.id = i.run_id
+                 WHERE i.job_id = confirmations.job_id AND r.date = confirmations.date
+                 ORDER BY i.run_id DESC LIMIT 1)`);
+    })();
+  }
+
   // Columns added after the initial schema (SQLite has no ADD COLUMN IF NOT EXISTS).
   const userCols = (
     db.prepare('PRAGMA table_info(users)').all() as { name: string }[]

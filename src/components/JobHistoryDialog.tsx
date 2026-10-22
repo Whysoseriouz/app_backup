@@ -194,9 +194,14 @@ export function JobHistoryDialog({
                             {formatUtcDateTime(c.confirmed_at)}
                           </span>
                         </div>
+                        {c.veeam_note && (
+                          <div className="mt-0.5 text-xs text-slate-500 whitespace-pre-wrap dark:text-slate-400">
+                            {c.veeam_note}
+                          </div>
+                        )}
                         {c.note && (
-                          <div className="mt-0.5 text-xs text-slate-600 whitespace-pre-wrap dark:text-slate-400">
-                            {c.note}
+                          <div className="mt-0.5 text-xs text-slate-800 whitespace-pre-wrap dark:text-slate-200">
+                            <span className="font-semibold">Notiz:</span> {c.note}
                           </div>
                         )}
                         {c.conflict && (

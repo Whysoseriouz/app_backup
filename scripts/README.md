@@ -106,15 +106,16 @@ Kopiere `sync-veeam.ps1` z. B. nach `C:\Scripts\BackupCheck\sync-veeam.ps1`.
 
 Einmalig, systemweit (als Administrator):
 
-```powershell
-[Environment]::SetEnvironmentVariable('BACKUP_CHECK_URL',
-  'http://backup-check.lan:3000/api/sync', 'Machine')
+Die URL ist im Skript bereits als Standard hinterlegt
+(`https://backup.osk-cloud.asp/api/sync`). `BACKUP_CHECK_URL` nur setzen, wenn eine
+andere Instanz angesprochen werden soll.
 
+```powershell
 [Environment]::SetEnvironmentVariable('BACKUP_CHECK_TOKEN',
   'f8a5e9c1-...-derselbe-wert-wie-in-.env', 'Machine')
 ```
 
-Der Hostname/IP muss auf den Docker-Host zeigen, auf dem Backup Check läuft.
+Backup Check läuft hinter Traefik mit Zertifikat der osk-cloud-CA – der Veeam-Host muss `backup.osk-cloud.asp` auflösen und der CA vertrauen (Test: `Invoke-WebRequest https://backup.osk-cloud.asp/login -UseBasicParsing`). Port 3000 ist nicht mehr erreichbar.
 
 ## 4. Trockenlauf
 
@@ -144,7 +145,7 @@ Erwartete Ausgabe (Beispiel):
 [Backup-Check] Sync/check at : 04/22/2026 07:00:00
 [Backup-Check] Lookback      : 04/21/2026 13:00:00  ->  04/22/2026 07:00:00
 [Backup-Check] Sessions found: 42 total, 39 unique jobs
-[Backup-Check] Sending 39 results to http://backup-check.lan:3000/api/sync
+[Backup-Check] Sending 39 results to https://backup.osk-cloud.asp/api/sync
 [Backup-Check] Inserted:       38
 [Backup-Check] Updated:        0
 [Backup-Check] Skipped manual: 1

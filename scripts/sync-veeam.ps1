@@ -20,7 +20,7 @@
   How many hours to look back for finished sessions. Default: 18.
 
 .PARAMETER Endpoint
-  Sync URL. Default: $env:BACKUP_CHECK_URL or http://localhost:3000/api/sync
+  Sync URL. Default: $env:BACKUP_CHECK_URL or https://backup.osk-cloud.asp/api/sync
 
 .PARAMETER Token
   Bearer token. Default: $env:BACKUP_CHECK_TOKEN
@@ -45,7 +45,7 @@
 param(
   [string] $TargetDate       = ((Get-Date).AddDays(-1).ToString('yyyy-MM-dd')),
   [int]    $LookbackHours    = 18,
-  [string] $Endpoint         = $(if ($env:BACKUP_CHECK_URL) { $env:BACKUP_CHECK_URL } else { 'http://localhost:3000/api/sync' }),
+  [string] $Endpoint         = $(if ($env:BACKUP_CHECK_URL) { $env:BACKUP_CHECK_URL } else { 'https://backup.osk-cloud.asp/api/sync' }),
   [string] $Token            = $env:BACKUP_CHECK_TOKEN,
   [switch] $IncludeCopyJobs,
   [switch] $DryRun
@@ -217,7 +217,14 @@ function Get-SessionNote {
     try {
       $logger = $Session.Logger
       if ($logger) {
-        $records = @($logger.GetLog())
+        # Veeam 12+: GetLog() liefert ein CTaskLogUpdates-Objekt, die
+        # Eintraege stehen in .UpdatedRecords (aeltere Versionen: direkt Liste)
+        $log = $logger.GetLog()
+        $records = if ($log -and $log.PSObject.Properties['UpdatedRecords']) {
+          @($log.UpdatedRecords)
+        } else {
+          @($log)
+        }
         if ($DebugVerbose) {
           Write-Host ("    [dbg] session.Logger.GetLog() -> {0} record(s)" -f $records.Count)
         }
@@ -226,6 +233,8 @@ function Get-SessionNote {
           if ($status -notmatch '(?i)warn|fail|error') { continue }
           $title = "$($r.Title)".Trim()
           $desc  = "$($r.Description)".Trim()
+          # "Job finished with warning at ..." sagt nichts ueber die Ursache
+          if ($title -match '(?i)^Job finished with ') { continue }
           if ($DebugVerbose) {
             Write-Host ("    [dbg] log [{0}] title='{1}' desc='{2}'" -f $status, $title, $desc)
           }
